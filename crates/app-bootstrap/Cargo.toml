@@ -1,0 +1,47 @@
+[package]
+"name" = "app-bootstrap"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[features]
+"default" = ["codex", "console", "high-risk", "low-risk", "range", "telegram", "trend", "volume"]
+"low-risk" = ["dep:strategy-low-risk"]
+"high-risk" = ["dep:strategy-high-risk"]
+"codex" = ["dep:provider-codex"]
+"range" = ["dep:analyzer-range"]
+"volume" = ["dep:analyzer-volume"]
+"trend" = ["dep:analyzer-trend"]
+"console" = ["dep:notification-console"]
+"telegram" = ["dep:notification-telegram"]
+
+[dependencies]
+"async-trait" = "0.1"
+"monitor-runtime" = { "path" = "../monitor-runtime" }
+"domain" = { "path" = "../domain" }
+"app-config" = { "path" = "../app-config" }
+"plugin-api" = { "path" = "../plugin-api" }
+"analysis-api" = { "path" = "../analysis-api" }
+"analyzer-range" = { "path" = "../analyzer-range", "optional" = true }
+"analyzer-volume" = { "path" = "../analyzer-volume", "optional" = true }
+"thiserror" = "2"
+"provider-codex" = { "path" = "../provider-codex", "optional" = true }
+"strategy-api" = { "path" = "../strategy-api" }
+"strategy-engine" = { "path" = "../strategy-engine" }
+"strategy-low-risk" = { "path" = "../strategy-low-risk", "optional" = true }
+"strategy-high-risk" = { "path" = "../strategy-high-risk", "optional" = true }
+"notification-api" = { "path" = "../notification-api" }
+"state-api" = { "path" = "../state-api" }
+"notification-console" = { "path" = "../notification-console", "optional" = true }
+"notification-telegram" = { "path" = "../notification-telegram", "optional" = true }
+"state-memory" = { "path" = "../state-memory" }
+"analyzer-trend" = { "path" = "../analyzer-trend", "optional" = true }
+"provider-api" = { "path" = "../provider-api" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"discovery-api" = { "path" = "../discovery-api" }
+
+
+[[test]]
+name = "configuration"
+path = "tests/configuration.rs"

@@ -1,0 +1,16 @@
+[package]
+"name" = "state-api"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"signal-api" = { "path" = "../signal-api" }
+"notification-api" = { "path" = "../notification-api" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"thiserror" = "2"
+"async-trait" = "0.1"
+"serde_json" = "1"
+"discovery-api" = { "path" = "../discovery-api" }

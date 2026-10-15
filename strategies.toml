@@ -1,0 +1,19 @@
+# Example pump screening for small-cap tokens. Telegram is configured separately.
+logging = true
+filter_interval_minutes = 3
+timeframe_secs = 60
+metrics_max_age_secs = 60
+
+[filters]
+market_cap_usd = { gt = 200000, lt = 3000000 }
+total_liquidity_usd = { gt = 20000 }
+
+[profiles.high.filters]
+volume_5m_to_liquidity = { gt = 0.1 }
+
+[[strategies]]
+id = "pump"
+kind = "pump_high"
+[strategies.signal]
+context_bars = 20
+min_gain_pct = 10.0

@@ -1,0 +1,10 @@
+/target
+
+# Local monitor state (WAL and SHM belong to the same database).
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+.env
+.env.*
+!.env.example

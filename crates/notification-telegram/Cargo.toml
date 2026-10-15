@@ -1,0 +1,19 @@
+[package]
+"name" = "notification-telegram"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"app-config" = { "path" = "../app-config" }
+"plugin-api" = { "path" = "../plugin-api" }
+"provider-api" = { "path" = "../provider-api" }
+"notification-api" = { "path" = "../notification-api" }
+"notification-render" = { "path" = "../notification-render" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"serde_json" = "1"
+"async-trait" = "0.1"
+"reqwest" = { "version" = "0.13", "default-features" = false, "features" = ["json", "rustls"] }
+"tokio" = { "version" = "1", "features" = ["sync", "time", "rt", "macros"] }

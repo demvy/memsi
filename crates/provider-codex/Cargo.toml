@@ -1,0 +1,21 @@
+[package]
+"name" = "provider-codex"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"sqlx" = { "version" = "0.9", "default-features" = false, "features" = ["sqlite", "runtime-tokio"] }
+"time" = "0.3.44"
+"httpdate" = "1"
+"domain" = { "path" = "../domain" }
+"plugin-api" = { "path" = "../plugin-api" }
+"provider-api" = { "path" = "../provider-api" }
+"discovery-api" = { "path" = "../discovery-api" }
+"app-config" = { "path" = "../app-config" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"serde_json" = { "version" = "1", "features" = ["raw_value"] }
+"async-trait" = "0.1"
+"reqwest" = { "version" = "0.13", "default-features" = false, "features" = ["json", "rustls"] }
+"tokio" = { "version" = "1", "features" = ["sync", "time", "rt", "macros"] }

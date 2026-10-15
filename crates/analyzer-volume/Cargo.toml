@@ -1,0 +1,13 @@
+[package]
+"name" = "analyzer-volume"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"plugin-api" = { "path" = "../plugin-api" }
+"analysis-api" = { "path" = "../analysis-api" }
+"analysis-model" = { "path" = "../analysis-model" }
+"serde" = { "version" = "1", "features" = ["derive"] }

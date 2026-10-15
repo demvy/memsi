@@ -1,0 +1,14 @@
+[package]
+name = "memes_finder"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+default-run = "memes_finder"
+
+[dependencies]
+app-cli = { path = "crates/app-cli" }
+
+[workspace]
+members = ["crates/*"]
+default-members = ["."]
+resolver = "3"

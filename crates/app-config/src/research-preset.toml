@@ -1,0 +1,80 @@
+# Almost free budget: discovery/rechecks every 12h; at most two watched tokens.
+# Research monitor: Codex-only, two active profiles, console delivery.
+schema_version = 1
+mode = "signal"
+[monitor]
+poll_interval_secs = 43200
+min_recheck_secs = 43200
+candidate_workers = 2
+queue_capacity = 2
+candidate_deadline_secs = 30
+max_candidates = 1
+close_grace_ms = 5000
+
+[chain]
+family = "solana"
+genesis_hash = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+[[plugins]]
+id = "range-low"
+plugin = "analyzer.range"
+[[plugins]]
+id = "volume"
+plugin = "analyzer.volume"
+[plugins.config.robust]
+short_bars = 5
+long_bars = 20
+# Requires CODEX_API_KEY only when market-data requests are actually executed.
+[[plugins]]
+id = "codex"
+plugin = "provider.codex"
+[plugins.config]
+api_key = "env:CODEX_API_KEY"
+network_id = 1399811149
+concurrency = 2
+min_interval_ms = 500
+
+# Research presets. CL eligibility requires an independent verifier.
+[[strategies]]
+id = "low"
+plugin = "strategy.range-low-risk"
+[strategies.config]
+range_analyzer = "range-low"
+volume_analyzer = "volume"
+research_only = true
+[strategies.config.thresholds]
+liquidity_usd = 300000.0
+volume_24h_usd = 500000.0
+age_secs = 43200
+confidence = 0.85
+max_width_pct = 20.0
+relative_volume = 0.8
+[strategies.config.research]
+min_position_pct = 0.0
+max_position_pct = 40.0
+reject_bearish_confidence = 0.2
+allowed_chains = [{ family = "solana", genesis_hash = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" }]
+
+[[strategies]]
+id = "high"
+plugin = "strategy.range-high-risk"
+[strategies.config]
+range_analyzer = "range-low"
+volume_analyzer = "volume"
+research_only = true
+[strategies.config.thresholds]
+liquidity_usd = 50000.0
+volume_24h_usd = 100000.0
+age_secs = 1800
+confidence = 0.72
+max_width_pct = 40.0
+relative_volume = 0.5
+[strategies.config.research]
+min_position_pct = 0.0
+max_position_pct = 70.0
+reject_bearish_confidence = 0.2
+allowed_chains = [{ family = "solana", genesis_hash = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d" }]
+
+[[notifications]]
+id = "console"
+plugin = "notification.console"
+

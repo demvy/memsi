@@ -1,0 +1,11 @@
+# Credentials are loaded from the environment or local .env.
+strategies_file = "strategies.toml"
+watchlist_retention_minutes = 30
+telegram = true # Set true after configuring Telegram credentials.
+fallback_api_keys = []
+
+[api_usage]
+monthly_limit = 10000
+warn_at = 9000
+reset_day = 1 # Adjust to your subscription's UTC billing boundary.
+database = "api-usage.sqlite"
