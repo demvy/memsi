@@ -10,6 +10,7 @@ pub struct TrendConfig {
     pub neutral_slope_per_bar: f64,
     pub min_r_squared: f64,
 }
+
 impl Default for TrendConfig {
     fn default() -> Self {
         Self {
@@ -19,11 +20,13 @@ impl Default for TrendConfig {
         }
     }
 }
+
 pub struct TrendAnalyzer {
     instance: InstanceId,
     config: TrendConfig,
     digest: ContentHash,
 }
+
 impl TrendAnalyzer {
     pub fn new(instance: InstanceId, config: TrendConfig) -> Result<Self, AnalysisError> {
         if !(2..=1500).contains(&config.window)
@@ -34,6 +37,7 @@ impl TrendAnalyzer {
         {
             return Err(AnalysisError::InvalidInput("trend configuration".into()));
         }
+
         let digest = ContentHash::of(&config).map_err(|_| AnalysisError::NumericFailure)?;
         Ok(Self {
             instance,
@@ -41,6 +45,7 @@ impl TrendAnalyzer {
             digest,
         })
     }
+
     pub fn descriptor_static() -> plugin_api::PluginDescriptor {
         plugin_api::PluginDescriptor {
             id: PluginId::new("analyzer.trend").unwrap(),
@@ -52,6 +57,7 @@ impl TrendAnalyzer {
             )],
         }
     }
+
     /// OLS on the latest closed window. Multiplicative price units do not change log slope.
     pub fn analyze_prices(
         &self,
@@ -65,6 +71,7 @@ impl TrendAnalyzer {
                 need: self.config.window,
             });
         }
+
         let prices = &prices[prices.len() - self.config.window..];
         if prices
             .iter()
@@ -74,6 +81,7 @@ impl TrendAnalyzer {
                 "trend prices must be positive and finite".into(),
             ));
         }
+
         let origin = prices[0].ln();
         let logs: Vec<_> = prices.iter().map(|price| price.ln() - origin).collect();
         let mean = sum(logs.iter().copied()) / logs.len() as f64;
@@ -93,9 +101,11 @@ impl TrendAnalyzer {
         } else {
             (1. - residual / total).clamp(0., 1.)
         };
+
         if !slope.is_finite() || !r_squared.is_finite() {
             return Err(AnalysisError::NumericFailure);
         }
+
         let direction = if r_squared < self.config.min_r_squared
             || slope.abs() <= self.config.neutral_slope_per_bar
         {
@@ -105,6 +115,7 @@ impl TrendAnalyzer {
         } else {
             TrendDirection::Down
         };
+
         Ok(TrendAnalysis {
             slope_log_per_bar: slope,
             r_squared: UnitInterval::new(r_squared).map_err(|_| AnalysisError::NumericFailure)?,
@@ -115,6 +126,7 @@ impl TrendAnalyzer {
         })
     }
 }
+
 fn sum(values: impl Iterator<Item = f64>) -> f64 {
     let mut total = 0.;
     let mut correction = 0.;
@@ -124,18 +136,23 @@ fn sum(values: impl Iterator<Item = f64>) -> f64 {
         correction = (next - total) - adjusted;
         total = next;
     }
+
     total
 }
+
 impl Analyzer for TrendAnalyzer {
     fn descriptor(&self) -> plugin_api::PluginDescriptor {
         Self::descriptor_static()
     }
+
     fn instance(&self) -> &InstanceId {
         &self.instance
     }
+
     fn config_digest(&self) -> &ContentHash {
         &self.digest
     }
+
     fn requirements(&self, resolution: Resolution, price_unit: PriceUnit) -> AnalysisRequirements {
         AnalysisRequirements {
             candles: CandleRequirement {
@@ -148,16 +165,19 @@ impl Analyzer for TrendAnalyzer {
             dependencies: vec![],
         }
     }
+
     fn analyze(&self, ctx: &AnalysisContext<'_>) -> Result<AnalysisValue, AnalysisError> {
         if ctx.candles.end_exclusive > ctx.as_of {
             return Err(AnalysisError::InvalidInput("future candle cutoff".into()));
         }
+
         if ctx.candles.candles.len() < self.config.window {
             return Err(AnalysisError::InsufficientHistory {
                 have: ctx.candles.candles.len(),
                 need: self.config.window,
             });
         }
+
         ctx.candles
             .validate(self.config.window)
             .map_err(|error| AnalysisError::InvalidInput(error.to_string()))?;
@@ -173,3 +193,6 @@ impl Analyzer for TrendAnalyzer {
         .map(AnalysisValue::Trend)
     }
 }
+
+#[cfg(test)]
+mod tests;

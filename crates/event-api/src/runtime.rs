@@ -10,6 +10,7 @@ pub enum CyclePhase {
     Interrupted,
     Stopped,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct CycleSummary {
     pub discovered: usize,
@@ -22,6 +23,7 @@ pub struct CycleSummary {
     pub discovery_quarantined: bool,
     pub quarantined_candidates: usize,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct RuntimeSnapshot {
     pub schema_version: u16,
@@ -32,6 +34,7 @@ pub struct RuntimeSnapshot {
     pub finished_at: Option<TimestampMs>,
     pub last_cycle: Option<CycleSummary>,
 }
+
 /// Redacted bounded scheduler facts; no provider health inference.
 pub trait RuntimeStatusReader: Send + Sync {
     fn runtime_snapshot(&self) -> Option<RuntimeSnapshot>;

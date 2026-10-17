@@ -4,7 +4,7 @@
 
 MEMSI is a Rust CLI application. The current monitoring path uses **Codex.io** for discovery, token metrics, pools, and OHLCV data. It can evaluate multiple strategies and profiles against shared inputs and deliver signals to console and Telegram. It does not automatically trade or open LP positions.
 
-[Quick start](#quick-start) · [Configuration](#configuration) · [Strategy reference](#strategy-reference) · [Custom strategies](#custom-strategies) · [Architecture](arch.md)
+[Quick start](#quick-start) · [Configuration](#configuration) · [Strategy reference](#strategy-reference) · [Custom strategies](#custom-strategies) · [Architecture](docs/arch.md)
 
 ## What it does
 
@@ -318,4 +318,4 @@ There is no runtime library loading. Keep private thresholds in local configurat
 
 Signals, duplicate suppression, the delivery outbox, candles and watchlist records live in memory. Restarting clears this state. API usage is persisted in SQLite through SQLx so per-key quota accounting survives restarts.
 
-The workspace builds one binary, `memes_finder`. See [arch.md](arch.md) for module boundaries and [CONTENTS.md](CONTENTS.md) for the library inventory.
+The workspace builds one binary, `memes_finder`. See [arch.md](arch.md) for module boundaries.

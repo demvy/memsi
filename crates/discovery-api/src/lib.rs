@@ -15,6 +15,7 @@ pub struct DiscoveryQuery {
     pub market_cap_filter: Option<MetricBounds>,
     pub max_items: usize,
 }
+
 impl DiscoveryQuery {
     pub fn union(
         chain: ChainId,
@@ -24,6 +25,7 @@ impl DiscoveryQuery {
         if thresholds.is_empty() || max_items == 0 || max_items > 1000 {
             return Err(ProviderError::InvalidRequest);
         }
+
         let min_liquidity_usd = if thresholds.iter().any(Option::is_none) {
             None
         } else {
@@ -33,6 +35,7 @@ impl DiscoveryQuery {
                 .copied()
                 .min_by(|a, b| a.get().total_cmp(&b.get()))
         };
+
         Ok(Self {
             chain,
             min_liquidity_usd,
@@ -41,15 +44,18 @@ impl DiscoveryQuery {
             max_items,
         })
     }
+
     pub fn digest(&self) -> ContentHash {
         ContentHash::of(self).expect("validated finite discovery values")
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DiscoveryCursor {
     pub query_digest: ContentHash,
     pub value: String,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CandidateBatch {
     pub items: Vec<Candidate>,
@@ -57,6 +63,7 @@ pub struct CandidateBatch {
     pub fetched_at: TimestampMs,
     pub coverage: Coverage,
 }
+
 #[async_trait]
 pub trait CandidateSource: Send + Sync {
     fn descriptor(&self) -> plugin_api::PluginDescriptor;
@@ -67,3 +74,6 @@ pub trait CandidateSource: Send + Sync {
         ctx: &RequestContext,
     ) -> Result<CandidateBatch, ProviderError>;
 }
+
+#[cfg(test)]
+mod tests;

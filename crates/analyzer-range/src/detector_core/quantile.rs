@@ -11,17 +11,20 @@ pub(crate) fn quantile(values: &[f64], q: f64, buffer: &mut Vec<f64>) -> f64 {
     let fraction = rank - lower as f64;
     buffer[lower] + fraction * (buffer[upper] - buffer[lower])
 }
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Band {
     pub lower: f64,
     pub center: f64,
     pub upper: f64,
 }
+
 impl Band {
     pub fn width(self) -> f64 {
         self.upper - self.lower
     }
 }
+
 pub(crate) fn band(values: &[f64], lower_q: f64, upper_q: f64, buffer: &mut Vec<f64>) -> Band {
     Band {
         lower: quantile(values, lower_q, buffer),
@@ -29,6 +32,7 @@ pub(crate) fn band(values: &[f64], lower_q: f64, upper_q: f64, buffer: &mut Vec<
         upper: quantile(values, upper_q, buffer),
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -42,6 +46,7 @@ mod tests {
         assert_eq!(quantile(&values, 0.9, &mut buffer), 36.0);
         assert_eq!(quantile(&values, 1.0, &mut buffer), 40.0);
     }
+
     #[test]
     fn quantile_does_not_depend_on_input_order() {
         let mut buffer = Vec::new();

@@ -11,3 +11,6 @@ pub use evaluation::{evaluate, evaluate_mode};
 pub use inputs::Evaluation;
 pub use report::{ProbeTrace, StrategyReport, screen_token_metrics};
 pub use selection::select_strategy_pools;
+
+#[cfg(test)]
+mod tests;

@@ -9,6 +9,7 @@ pub enum RangeState {
     Candidate,
     Confirmed,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RangeBounds {
     pub lower: PositivePrice,
@@ -24,6 +25,7 @@ pub struct RangeBounds {
     pub latest_inside_bounds: bool,
     pub outside_streak: usize,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RangeZone {
@@ -33,6 +35,7 @@ pub enum RangeZone {
     UpperThird,
     Above,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RangePosition {
     pub current_price: PositivePrice,
@@ -40,16 +43,19 @@ pub struct RangePosition {
     pub clamped_pct: f64,
     pub zone: RangeZone,
 }
+
 impl RangePosition {
     pub fn new(lower: f64, upper: f64, price: f64) -> Option<Self> {
         if !lower.is_finite() || !upper.is_finite() || lower <= 0.0 || upper <= lower {
             return None;
         }
+
         let current_price = PositivePrice::new(price).ok()?;
         let raw_pct = ((price - lower) / (upper - lower)) * 100.0;
         if !raw_pct.is_finite() {
             return None;
         }
+
         let zone = if raw_pct < 0.0 {
             RangeZone::Below
         } else if raw_pct <= 100.0 / 3.0 {
@@ -61,6 +67,7 @@ impl RangePosition {
         } else {
             RangeZone::Above
         };
+
         Some(Self {
             current_price,
             raw_pct,
@@ -69,6 +76,7 @@ impl RangePosition {
         })
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RangeAnalysis {
     pub state: RangeState,
@@ -76,6 +84,7 @@ pub struct RangeAnalysis {
     pub confidence: UnitInterval,
     pub price_unit: PriceUnit,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActivityState {
@@ -84,6 +93,7 @@ pub enum ActivityState {
     Elevated,
     Unknown,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VolumeAnalysis {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -98,6 +108,7 @@ pub struct VolumeAnalysis {
     pub baseline_bars: usize,
     pub state: ActivityState,
 }
+
 /// Opt-in median metrics; legacy mean fields retain their original semantics.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RobustVolumeAnalysis {
@@ -108,6 +119,7 @@ pub struct RobustVolumeAnalysis {
     pub long_slope: f64,
     pub state: ActivityState,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ArtifactProvenance {
     pub schema: SchemaId,
@@ -119,11 +131,13 @@ pub struct ArtifactProvenance {
     pub input_hash: ContentHash,
     pub as_of: TimestampMs,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Artifact<T> {
     pub provenance: ArtifactProvenance,
     pub value: T,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrendDirection {
@@ -131,6 +145,7 @@ pub enum TrendDirection {
     Down,
     Sideways,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrendAnalysis {
     pub slope_log_per_bar: f64,
@@ -139,4 +154,55 @@ pub struct TrendAnalysis {
     pub window: usize,
     pub resolution: Resolution,
     pub price_unit: PriceUnit,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn range_positions_classify_boundaries_and_clamp_only_display_percentages() {
+        for (price, percentage, zone) in [
+            (5.0, -50.0, RangeZone::Below),
+            (10.0, 0.0, RangeZone::LowerThird),
+            (12.0, 20.0, RangeZone::LowerThird),
+            (15.0, 50.0, RangeZone::MiddleThird),
+            (18.0, 80.0, RangeZone::UpperThird),
+            (20.0, 100.0, RangeZone::UpperThird),
+            (25.0, 150.0, RangeZone::Above),
+        ] {
+            let position = RangePosition::new(10.0, 20.0, price).unwrap();
+            assert_eq!(position.current_price.get(), price);
+            assert_eq!(position.raw_pct, percentage);
+            assert_eq!(position.clamped_pct, percentage.clamp(0.0, 100.0));
+            assert_eq!(position.zone, zone);
+        }
+
+        assert_eq!(
+            RangePosition::new(1.0, 4.0, 2.0).unwrap().zone,
+            RangeZone::LowerThird
+        );
+        assert_eq!(
+            RangePosition::new(1.0, 4.0, 3.0).unwrap().zone,
+            RangeZone::MiddleThird
+        );
+    }
+
+    #[test]
+    fn range_positions_reject_invalid_bounds_prices_and_numeric_overflow() {
+        for (lower, upper, price) in [
+            (0.0, 2.0, 1.0),
+            (-1.0, 2.0, 1.0),
+            (2.0, 2.0, 2.0),
+            (3.0, 2.0, 2.0),
+            (f64::NAN, 2.0, 1.0),
+            (1.0, f64::INFINITY, 1.0),
+            (1.0, 2.0, 0.0),
+            (1.0, 2.0, f64::NAN),
+            (1.0, 2.0, f64::INFINITY),
+            (1.0, 2.0, f64::MAX),
+        ] {
+            assert!(RangePosition::new(lower, upper, price).is_none());
+        }
+    }
 }

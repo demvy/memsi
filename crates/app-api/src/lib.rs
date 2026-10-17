@@ -9,6 +9,7 @@ pub struct EnabledInstance {
     pub plugin: PluginId,
     pub mode: String,
 }
+
 /// Shared CLI/HTTP shape. State and activity retain their explicit observation contracts.
 #[derive(Serialize)]
 pub struct StatusEnvelope<S, A> {
@@ -25,6 +26,7 @@ pub struct StatusEnvelope<S, A> {
     pub provider_transport: Option<ProviderTransportObservation>,
     pub state: S,
 }
+
 impl<S, A> StatusEnvelope<S, A> {
     pub fn new(
         config_digest: ContentHash,
@@ -54,6 +56,7 @@ impl<S, A> StatusEnvelope<S, A> {
             state,
         }
     }
+
     pub fn with_provider_transport(
         mut self,
         observation: Option<ProviderTransportObservation>,
@@ -61,17 +64,20 @@ impl<S, A> StatusEnvelope<S, A> {
         self.provider_transport = observation;
         self
     }
+
     pub fn with_analysis_jobs(mut self, jobs: Option<AnalysisJobStats>) -> Self {
         self.analysis_jobs = jobs;
         self
     }
 }
+
 /// Compiled catalog only, not a claim that every plugin is enabled or healthy.
 #[derive(Serialize)]
 pub struct PluginCatalogEnvelope {
     pub schema_version: u16,
     pub plugins: Vec<plugin_api::PluginDescriptor>,
 }
+
 impl PluginCatalogEnvelope {
     pub fn new(plugins: Vec<plugin_api::PluginDescriptor>) -> Self {
         Self {
@@ -80,6 +86,7 @@ impl PluginCatalogEnvelope {
         }
     }
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct StrategyInfo {
     pub instance: InstanceId,
@@ -88,6 +95,7 @@ pub struct StrategyInfo {
     pub mode: strategy_api::StrategyMode,
     pub config_digest: ContentHash,
 }
+
 impl StrategyInfo {
     pub fn from_strategy(strategy: &dyn strategy_api::Strategy) -> Self {
         let descriptor = strategy.descriptor();
@@ -100,11 +108,13 @@ impl StrategyInfo {
         }
     }
 }
+
 #[derive(Serialize)]
 pub struct StrategyCatalogEnvelope {
     pub schema_version: u16,
     pub strategies: Vec<StrategyInfo>,
 }
+
 impl StrategyCatalogEnvelope {
     pub fn new(strategies: Vec<StrategyInfo>) -> Self {
         Self {
@@ -113,6 +123,7 @@ impl StrategyCatalogEnvelope {
         }
     }
 }
+
 /// Static public failures only. Raw upstream/config/OS error strings do not belong here.
 #[derive(Serialize)]
 pub struct ErrorEnvelope {
@@ -121,6 +132,7 @@ pub struct ErrorEnvelope {
     pub request_id: String,
     pub details: Option<()>,
 }
+
 impl ErrorEnvelope {
     pub fn new(code: &'static str, message: &'static str, request_id: String) -> Self {
         Self {
@@ -131,6 +143,7 @@ impl ErrorEnvelope {
         }
     }
 }
+
 /// Bounded request for read-side analysis. Notifications need a separately authorized lane.
 #[derive(Clone, Debug, serde::Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -147,9 +160,11 @@ pub struct AnalysisJobRequest {
     #[serde(default)]
     pub notify: bool,
 }
+
 fn analysis_resolution() -> domain::Resolution {
     domain::Resolution::new(300).expect("constant resolution")
 }
+
 impl AnalysisJobRequest {
     /// Validate host identity/capabilities before admitting work or fetching provider data.
     pub fn analyze_request(
@@ -163,9 +178,11 @@ impl AnalysisJobRequest {
         {
             return Err("analysis chain mismatch");
         }
+
         if self.notify {
             return Err("analysis notifications are not authorized");
         }
+
         if close_grace_ms > 60000
             || enabled.is_empty()
             || enabled.len() > 64
@@ -173,16 +190,19 @@ impl AnalysisJobRequest {
         {
             return Err("invalid analysis bounds");
         }
+
         let mut seen = std::collections::BTreeSet::new();
         for id in &self.analyzer_instances {
             if !enabled.contains(id) || !seen.insert(id) {
                 return Err("unknown or duplicate analyzer instance");
             }
         }
+
         let mut policy = data_hub::selection::SelectionPolicy::default();
         if self.require_cl {
             policy.purpose = data_hub::selection::Purpose::ConcentratedLp;
         }
+
         Ok(app_services::AnalyzeRequest {
             token: self.token.clone(),
             pool: self.pool.clone(),
@@ -193,6 +213,7 @@ impl AnalysisJobRequest {
         })
     }
 }
+
 /// One locked registry observation, not provider/worker health or durable history.
 #[derive(Clone, Debug, Serialize)]
 pub struct AnalysisJobStats {
@@ -206,8 +227,12 @@ pub struct AnalysisJobStats {
     pub failed: usize,
     pub admission_available: bool,
 }
+
 #[derive(Serialize)]
 pub struct ProviderTransportObservation {
     pub instance: InstanceId,
     pub counters: provider_api::TransportObservations,
 }
+
+#[cfg(test)]
+mod tests;

@@ -7,6 +7,7 @@ pub(super) struct Console {
     debug: bool,
     logging: std::collections::BTreeMap<domain::InstanceId, bool>,
 }
+
 impl Console {
     pub(super) fn new(debug: bool, config: &app_config::AppConfig) -> Self {
         Self {
@@ -21,6 +22,7 @@ impl Console {
         }
     }
 }
+
 fn safe(text: &str) -> String {
     text.chars()
         .filter(|c| {
@@ -29,6 +31,7 @@ fn safe(text: &str) -> String {
         .take(1024)
         .collect()
 }
+
 fn label(candidate: &Candidate) -> String {
     format!(
         "{} CA={}",
@@ -36,12 +39,14 @@ fn label(candidate: &Candidate) -> String {
         candidate.token.address()
     )
 }
+
 fn timestamp(at: TimestampMs) -> String {
     OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.get()) * 1_000_000)
         .ok()
         .and_then(|t| t.format(&Rfc3339).ok())
         .unwrap_or_else(|| format!("{}ms UTC", at.get()))
 }
+
 fn styled(text: &str, color: bool) -> String {
     if color {
         format!("\x1b[31m{text}\x1b[0m")
@@ -49,6 +54,7 @@ fn styled(text: &str, color: bool) -> String {
         text.into()
     }
 }
+
 fn reason(reason: &strategy_api::DecisionReason) -> String {
     format!(
         "{}: {}={}; expected {}",
@@ -58,11 +64,13 @@ fn reason(reason: &strategy_api::DecisionReason) -> String {
         safe(&reason.expected)
     )
 }
+
 impl MonitorDiagnostics for Console {
     fn discovery(&self, finished_at: TimestampMs, elapsed: Duration, candidates: &[Candidate]) {
         if !self.logging.is_empty() && self.logging.values().all(|enabled| !enabled) {
             return;
         }
+
         eprintln!(
             "[discovery {}] received={} elapsed_ms={}",
             timestamp(finished_at),
@@ -73,11 +81,13 @@ impl MonitorDiagnostics for Console {
             eprintln!("  {}", label(candidate));
         }
     }
+
     fn evaluation(&self, candidate: &Candidate, evaluation: &app_services::EvaluationReport) {
         for item in &evaluation.strategies {
             if self.logging.get(&item.instance) == Some(&false) {
                 continue;
             }
+
             let prefix = format!(
                 "[{}] {} profile={}",
                 timestamp(evaluation.as_of),
@@ -108,6 +118,7 @@ impl MonitorDiagnostics for Console {
                 } else {
                     ("UNAVAILABLE".into(), "NO_ELIGIBLE_DATA", true)
                 };
+
                 eprintln!(
                     "{}",
                     styled(
@@ -117,6 +128,7 @@ impl MonitorDiagnostics for Console {
                 );
                 continue;
             }
+
             if let Some(reasons) = &item.prefilter_rejection {
                 for r in reasons {
                     eprintln!(
@@ -156,6 +168,7 @@ impl MonitorDiagnostics for Console {
                     )
                 );
             }
+
             for probe in &item.trace {
                 eprintln!(
                     "{}",
@@ -171,16 +184,97 @@ impl MonitorDiagnostics for Console {
             }
         }
     }
+
     fn failure(&self, candidate: &Candidate, error: &str) {
         if !self.logging.is_empty() && self.logging.values().all(|enabled| !enabled) {
             return;
         }
+
         eprintln!(
             "{}",
             styled(
                 &format!("{} UNAVAILABLE {}", label(candidate), safe(error)),
                 self.color
             )
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn console_helpers_clean_controls_limit_lengths_and_format_timestamps() {
+        assert_eq!(safe("A\nB\u{202e}🦀"), "AB🦀");
+        assert_eq!(safe(&"x".repeat(1025)).len(), 1024);
+        assert_eq!(
+            timestamp(TimestampMs::new(0).unwrap()),
+            "1970-01-01T00:00:00Z"
+        );
+        assert_eq!(styled("error", false), "error");
+        assert_eq!(styled("error", true), "\x1b[31merror\x1b[0m");
+        let reason = strategy_api::DecisionReason {
+            code: "MISSING".into(),
+            field: "volume".into(),
+            actual: None,
+            expected: "known".into(),
+        };
+        assert_eq!(
+            super::reason(&reason),
+            "MISSING: volume=unknown/stale; expected known"
+        );
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn disabled_diagnostic_policy_is_retained_and_labels_sanitize_provider_symbols() {
+        let mut config =
+            app_config::AppConfig::parse(include_str!("../../app-config/src/research-preset.toml"))
+                .unwrap();
+        for strategy in &mut config.strategies {
+            strategy.logging = false;
+        }
+        let console = Console::new(false, &config);
+        assert!(!console.debug);
+        assert!(console.logging.values().all(|enabled| !enabled));
+        let candidate = domain::Candidate {
+            metrics: Default::default(),
+            token: domain::TokenId::new(
+                domain::ChainId::Evm { chain_id: 1 },
+                "0x1111111111111111111111111111111111111111",
+            )
+            .unwrap(),
+            pool_hints: vec![],
+            symbol: Some("A\nB".into()),
+            discovered_at: TimestampMs::new(0).unwrap(),
+            source: domain::ProviderId::new("test").unwrap(),
+            liquidity_usd: domain::Knowledge::unknown(),
+        };
+        assert!(label(&candidate).starts_with("AB CA="));
+        console.discovery(
+            TimestampMs::new(0).unwrap(),
+            Duration::ZERO,
+            std::slice::from_ref(&candidate),
+        );
+        console.failure(&candidate, "test error");
+        console.evaluation(
+            &candidate,
+            &app_services::EvaluationReport {
+                schema_version: 1,
+                token: candidate.token.clone(),
+                as_of: TimestampMs::new(0).unwrap(),
+                coverage: provider_api::Coverage {
+                    complete: true,
+                    truncated: false,
+                    warnings: vec![],
+                },
+                strategies: vec![],
+            },
         );
     }
 }

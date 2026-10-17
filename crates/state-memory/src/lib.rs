@@ -10,6 +10,7 @@ use std::{
     collections::BTreeMap,
     sync::{Mutex, MutexGuard},
 };
+
 #[derive(Clone, Copy)]
 pub struct Limits {
     pub signals: usize,
@@ -17,6 +18,7 @@ pub struct Limits {
     pub dedupe_keys: usize,
     pub retry_abandoned_sends: bool,
 }
+
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -27,10 +29,12 @@ impl Default for Limits {
         }
     }
 }
+
 pub struct MemoryState {
     limits: Limits,
     inner: Mutex<Inner>,
 }
+
 #[derive(Default)]
 struct Inner {
     checkpoint: Option<MonitorCheckpoint>,
@@ -38,10 +42,12 @@ struct Inner {
     deliveries: BTreeMap<ContentHash, DeliveryRow>,
     dedupe: BTreeMap<ContentHash, DedupeEntry>,
 }
+
 struct DedupeEntry {
     signal: ContentHash,
     until: TimestampMs,
 }
+
 struct DeliveryRow {
     sink: InstanceId,
     notification: Notification,
@@ -51,6 +57,7 @@ struct DeliveryRow {
     lease: Option<DeliveryLease>,
     receipt: Option<DeliveryReceipt>,
 }
+
 impl DeliveryRow {
     fn terminal(&self) -> bool {
         matches!(
@@ -59,6 +66,7 @@ impl DeliveryRow {
         )
     }
 }
+
 impl MemoryState {
     pub fn new(limits: Limits) -> Result<Self, StateError> {
         if [limits.signals, limits.deliveries, limits.dedupe_keys]
@@ -67,14 +75,17 @@ impl MemoryState {
         {
             return Err(StateError::InvalidRequest);
         }
+
         Ok(Self {
             limits,
             inner: Mutex::new(Inner::default()),
         })
     }
+
     fn lock(&self) -> Result<MutexGuard<'_, Inner>, StateError> {
         self.inner.lock().map_err(|_| StateError::Unavailable)
     }
+
     pub fn stats(&self) -> Result<StateStats, StateError> {
         let inner = self.lock()?;
         Ok(StateStats {
@@ -103,6 +114,7 @@ impl MemoryState {
                 .count(),
         })
     }
+
     pub fn delivery_status(&self, id: &ContentHash) -> Result<DeliveryStatus, StateError> {
         self.lock()?
             .deliveries
@@ -110,12 +122,14 @@ impl MemoryState {
             .map(|row| row.status.clone())
             .ok_or(StateError::InvalidRequest)
     }
+
     /// Only abandoned leases can expire; a current owner may still acknowledge a send.
     fn maintain(&self, inner: &mut Inner, now: TimestampMs) {
         for row in inner.deliveries.values_mut() {
             if row.terminal() {
                 continue;
             }
+
             let sending = matches!(row.status, DeliveryStatus::Sending);
             let lease_active = row
                 .lease
@@ -124,6 +138,7 @@ impl MemoryState {
             if sending && lease_active {
                 continue;
             }
+
             if row.notification.signal.expires_at <= now {
                 row.status = DeliveryStatus::Expired;
                 row.due = None;
@@ -134,6 +149,7 @@ impl MemoryState {
                 row.lease = None;
             }
         }
+
         let active_signals: std::collections::BTreeSet<_> = inner
             .deliveries
             .values()
@@ -145,12 +161,14 @@ impl MemoryState {
             .retain(|_, entry| entry.until > now || active_signals.contains(&entry.signal));
     }
 }
+
 #[async_trait::async_trait]
 impl StateStore for MemoryState {
     async fn stats(&self) -> Result<StateStats, StateError> {
         MemoryState::stats(self)
     }
 }
+
 #[async_trait::async_trait]
 impl MonitorRepository for MemoryState {
     async fn load_checkpoint(
@@ -164,9 +182,61 @@ impl MonitorRepository for MemoryState {
             .filter(|checkpoint| &checkpoint.scope == scope)
             .cloned())
     }
+
     async fn save_checkpoint(&self, checkpoint: MonitorCheckpoint) -> Result<(), StateError> {
         checkpoint.validate()?;
         self.lock()?.checkpoint = Some(checkpoint);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_limits_reject_zero_and_excessive_capacity_independently() {
+        for field in 0..3 {
+            for value in [0, 100_001] {
+                let mut limits = Limits::default();
+                match field {
+                    0 => limits.signals = value,
+                    1 => limits.deliveries = value,
+                    _ => limits.dedupe_keys = value,
+                }
+                assert!(matches!(
+                    MemoryState::new(limits),
+                    Err(StateError::InvalidRequest)
+                ));
+            }
+        }
+
+        let state = MemoryState::new(Limits::default()).unwrap();
+        assert!(matches!(state.durability(), Durability::Volatile));
+        assert_eq!(state.stats().unwrap().pending, 0);
+        assert!(matches!(
+            state.delivery_status(&ContentHash::of_bytes(b"missing")),
+            Err(StateError::InvalidRequest)
+        ));
+    }
+
+    #[tokio::test]
+    async fn read_limits_are_validated_without_changing_state() {
+        let state = MemoryState::new(Limits::default()).unwrap();
+        for limit in [0, 1001] {
+            assert_eq!(
+                state.list_signals(limit).await.unwrap_err(),
+                StateError::InvalidRequest
+            );
+        }
+        for limit in [0, 201] {
+            assert_eq!(
+                state.signal_history(None, limit).await.unwrap_err(),
+                StateError::InvalidRequest
+            );
+        }
+        assert!(state.list_signals(1000).await.unwrap().is_empty());
+        assert!(state.signal_history(None, 200).await.unwrap().is_empty());
+        assert_eq!(StateStore::stats(&state).await.unwrap().signals, 0);
     }
 }

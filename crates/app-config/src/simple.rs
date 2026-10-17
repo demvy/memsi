@@ -17,12 +17,14 @@ struct Program {
     #[serde(default)]
     fallback_api_keys: Vec<crate::SecretRef>,
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profiles {
     low: Profile,
     high: Profile,
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profile {
@@ -34,6 +36,7 @@ struct Profile {
     relative_volume: f64,
     max_position_pct: f64,
 }
+
 impl Profile {
     fn apply(self, strategy: &mut PluginInstance) -> Result<(), ConfigError> {
         let thresholds = strategy
@@ -50,6 +53,7 @@ impl Profile {
         ] {
             thresholds.insert(name.into(), toml::Value::Float(value));
         }
+
         thresholds.insert(
             "age_secs".into(),
             toml::Value::Integer(i64::try_from(self.age_secs).map_err(|_| ConfigError::Parse)?),
@@ -66,6 +70,7 @@ impl Profile {
         Ok(())
     }
 }
+
 pub(crate) fn expand(input: toml::Value, path: &Path) -> Result<toml::Value, ConfigError> {
     let program: Program = input.try_into().map_err(|_| ConfigError::Parse)?;
     let strategies = path
@@ -109,6 +114,7 @@ pub(crate) fn expand(input: toml::Value, path: &Path) -> Result<toml::Value, Con
             profile.apply(strategy)?;
         }
     }
+
     let mut monitor = toml::Value::try_from(&config.monitor).map_err(|_| ConfigError::Parse)?;
     monitor
         .as_table_mut()
@@ -118,6 +124,7 @@ pub(crate) fn expand(input: toml::Value, path: &Path) -> Result<toml::Value, Con
     if let Some(minutes) = program.watchlist_retention_minutes {
         config.monitor.watchlist_retention_minutes = minutes;
     }
+
     if program.telegram {
         let chat = local_env("TELEGRAM_CHAT_ID")
             .ok_or_else(|| ConfigError::Validation("missing TELEGRAM_CHAT_ID".into()))?;
@@ -134,5 +141,6 @@ pub(crate) fn expand(input: toml::Value, path: &Path) -> Result<toml::Value, Con
         ]);
         config.notifications.push(notification);
     }
+
     toml::Value::try_from(config).map_err(|_| ConfigError::Parse)
 }

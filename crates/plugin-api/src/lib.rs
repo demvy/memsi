@@ -12,6 +12,7 @@ pub enum PluginKind {
     NotificationSink,
     StateStore,
 }
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Capability {
     pub id: CapabilityId,
@@ -20,6 +21,7 @@ pub struct Capability {
     pub resolutions: Vec<Resolution>,
     pub price_units: Vec<PriceUnit>,
 }
+
 impl Capability {
     pub fn pure(id: CapabilityId, schema_major: u16) -> Self {
         Self {
@@ -30,6 +32,7 @@ impl Capability {
             price_units: vec![],
         }
     }
+
     pub fn covers(&self, request: &Capability) -> bool {
         self.id == request.id
             && self.schema_major == request.schema_major
@@ -44,6 +47,7 @@ impl Capability {
                 .all(|x| self.price_units.contains(x))
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginDescriptor {
     pub id: PluginId,
@@ -51,12 +55,14 @@ pub struct PluginDescriptor {
     pub kind: PluginKind,
     pub provides: Vec<Capability>,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Requirement {
     pub binding: BindingId,
     pub provider: InstanceId,
     pub capability: Capability,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConfiguredPlugin {
     pub instance: InstanceId,
@@ -64,6 +70,7 @@ pub struct ConfiguredPlugin {
     pub config_digest: ContentHash,
     pub requires: Vec<Requirement>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RegistryError {
     #[error("duplicate plugin {0}")]
@@ -81,27 +88,33 @@ pub enum RegistryError {
     #[error("dependency cycle: {0:?}")]
     Cycle(Vec<InstanceId>),
 }
+
 #[derive(Default)]
 pub struct PluginCatalog {
     entries: BTreeMap<PluginId, PluginDescriptor>,
 }
+
 impl PluginCatalog {
     pub fn register(&mut self, descriptor: PluginDescriptor) -> Result<(), RegistryError> {
         if self.entries.contains_key(&descriptor.id) {
             return Err(RegistryError::DuplicatePlugin(descriptor.id));
         }
+
         self.entries.insert(descriptor.id.clone(), descriptor);
         Ok(())
     }
+
     pub fn get(&self, id: &PluginId) -> Result<&PluginDescriptor, RegistryError> {
         self.entries
             .get(id)
             .ok_or_else(|| RegistryError::NotCompiled(id.clone()))
     }
+
     pub fn descriptors(&self) -> impl Iterator<Item = &PluginDescriptor> {
         self.entries.values()
     }
 }
+
 pub fn validate_instances(
     instances: &[ConfiguredPlugin],
 ) -> Result<Vec<InstanceId>, RegistryError> {
@@ -111,6 +124,7 @@ pub fn validate_instances(
             return Err(RegistryError::DuplicateInstance(i.instance.clone()));
         }
     }
+
     for i in instances {
         for r in &i.requires {
             if !map.get(&r.provider).is_some_and(|p| {
@@ -127,6 +141,7 @@ pub fn validate_instances(
             }
         }
     }
+
     fn visit(
         id: &InstanceId,
         map: &BTreeMap<InstanceId, &ConfiguredPlugin>,
@@ -137,24 +152,32 @@ pub fn validate_instances(
         if done.contains(id) {
             return Ok(());
         }
+
         if let Some(start) = path.iter().position(|x| x == id) {
             let mut cycle = path[start..].to_vec();
             cycle.push(id.clone());
             return Err(RegistryError::Cycle(cycle));
         }
+
         path.push(id.clone());
         for r in &map[id].requires {
             visit(&r.provider, map, path, done, out)?;
         }
+
         path.pop();
         done.insert(id.clone());
         out.push(id.clone());
         Ok(())
     }
+
     let mut out = vec![];
     let mut done = BTreeSet::new();
     for id in map.keys() {
         visit(id, &map, &mut vec![], &mut done, &mut out)?;
     }
+
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests;

@@ -11,6 +11,7 @@ pub enum Network {
     EthereumMainnet,
     ArcMainnet,
 }
+
 impl Network {
     pub fn name(self) -> &'static str {
         match self {
@@ -21,6 +22,7 @@ impl Network {
             Self::ArcMainnet => "arc-mainnet",
         }
     }
+
     pub fn codex_id(self) -> i32 {
         match self {
             Self::Solana => 1399811149,
@@ -30,6 +32,7 @@ impl Network {
             Self::ArcMainnet => 5042,
         }
     }
+
     pub fn chain(self) -> ChainId {
         match self {
             Self::Solana => ChainId::Solana {
@@ -41,11 +44,13 @@ impl Network {
         }
     }
 }
+
 impl fmt::Display for Network {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.name())
     }
 }
+
 impl FromStr for Network {
     type Err = String;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -64,6 +69,7 @@ impl FromStr for Network {
         }
     }
 }
+
 impl AppConfig {
     /// Offline override. Only Codex providers can be reassigned to a selected network.
     pub fn select_network(&mut self, network: Network) -> Result<(), ConfigError> {
@@ -77,6 +83,7 @@ impl AppConfig {
                 "--network requires a Codex-only configuration".into(),
             ));
         }
+
         if !self
             .plugins
             .iter()
@@ -86,6 +93,7 @@ impl AppConfig {
                 "--network requires an enabled Codex provider".into(),
             ));
         }
+
         let mut selected = self.clone();
         selected.chain = chain;
         for provider in selected
@@ -98,6 +106,7 @@ impl AppConfig {
                 toml::Value::Integer(network.codex_id() as i64),
             );
         }
+
         selected.validate()?;
         *self = selected;
         Ok(())

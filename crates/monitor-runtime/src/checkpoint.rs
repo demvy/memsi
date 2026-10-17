@@ -5,6 +5,7 @@ impl Monitor<'_> {
         if self.restored {
             return Ok(());
         }
+
         if let Some(mut checkpoint) = self
             .dependencies
             .state
@@ -18,6 +19,7 @@ impl Monitor<'_> {
                 checkpoint.cursor = None;
                 checkpoint.next_discovery = now;
             }
+
             if checkpoint.saved_at > now
                 || checkpoint.watch.len()
                     > self.dependencies.config.monitor.queue_capacity.min(1000)
@@ -32,6 +34,7 @@ impl Monitor<'_> {
             {
                 return Err(StateError::InvalidRequest);
             }
+
             self.cursor = checkpoint.cursor;
             self.next_discovery = checkpoint.next_discovery;
             self.sequence = checkpoint.sequence;
@@ -41,9 +44,11 @@ impl Monitor<'_> {
                 .map(|entry| (entry.candidate.token.clone(), entry))
                 .collect();
         }
+
         self.restored = true;
         Ok(())
     }
+
     pub(super) async fn checkpoint(&self) -> Result<(), StateError> {
         self.dependencies
             .state

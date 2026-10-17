@@ -15,6 +15,7 @@ pub(super) fn log(config: &Path) {
     } else {
         "missing"
     };
+
     eprintln!(
         "{}",
         serde_json::json!({

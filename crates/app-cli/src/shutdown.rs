@@ -8,6 +8,7 @@ pub(crate) async fn shutdown_signal() -> std::io::Result<()> {
             _ = terminate.recv() => Ok(()),
         }
     }
+
     #[cfg(not(unix))]
     tokio::signal::ctrl_c().await
 }

@@ -7,6 +7,7 @@ pub enum RangeError {
     NonPositivePrice { index: usize, value: f64 },
     InvalidConfig(&'static str),
 }
+
 impl fmt::Display for RangeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -14,13 +15,16 @@ impl fmt::Display for RangeError {
             Self::NonFinitePrice { index, value } => {
                 write!(formatter, "price at index {index} is not finite: {value}")
             }
+
             Self::NonPositivePrice { index, value } => {
                 write!(formatter, "price at index {index} is not positive: {value}")
             }
+
             Self::InvalidConfig(message) => {
                 write!(formatter, "invalid detector config: {message}")
             }
         }
     }
 }
+
 impl Error for RangeError {}

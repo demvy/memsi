@@ -14,3 +14,6 @@ mod strategy_set;
 pub use config::{AppConfig, AppMode, ConfigError, InstanceMode, MonitorConfig, PluginInstance};
 pub use environment::local_env;
 pub use secrets::SecretRef;
+
+#[cfg(test)]
+mod tests;

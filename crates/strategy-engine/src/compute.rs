@@ -5,15 +5,18 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::Mutex,
 };
+
 /// Evaluation-local cache. It never mixes snapshots or survives config changes.
 #[derive(Default)]
 pub(super) struct ComputeCache {
     results: Mutex<BTreeMap<ContentHash, Result<AnalysisValue, AnalysisError>>>,
 }
+
 pub(super) struct ComputedAnalysis {
     pub value: AnalysisValue,
     pub input_hash: ContentHash,
 }
+
 impl ComputeCache {
     pub fn analyze(
         &self,
@@ -62,12 +65,14 @@ impl ComputeCache {
                 input_hash: view.provenance.input_hash,
             });
         }
+
         let artifacts = ArtifactStore::default();
         let context = AnalysisContext {
             candles: &view,
             dependencies: &artifacts,
             as_of,
         };
+
         let result = catch_unwind(AssertUnwindSafe(|| analyzer.analyze(&context)))
             .unwrap_or_else(|_| Err(AnalysisError::InvalidInput("analyzer panic".into())));
         results.insert(key, result.clone());

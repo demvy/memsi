@@ -5,6 +5,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     panic::{AssertUnwindSafe, catch_unwind},
 };
+
 use strategy_api::{PrefilterDecision, Strategy};
 
 pub(super) fn selected_fields(
@@ -24,6 +25,7 @@ pub(super) fn selected_fields(
             .collect()
     })
 }
+
 impl Services {
     /// One metrics read for the due watchlist only; discovered but not due tokens incur no read.
     pub async fn prefetch_token_metrics(
@@ -36,9 +38,11 @@ impl Services {
         if candidates.len() > 100 || strategies.is_empty() || strategies.len() > 64 {
             return Err(ProviderError::InvalidRequest);
         }
+
         if !strategies.values().any(|s| s.uses_token_metrics()) {
             return Ok(BTreeMap::new());
         }
+
         let now = self.evaluation_time()?;
         let tokens: Vec<_> = candidates
             .iter()
@@ -57,6 +61,7 @@ impl Services {
         if tokens.is_empty() {
             return Ok(BTreeMap::new());
         }
+
         let fields = selected_fields(strategies);
         let metrics = read_bounded(
             self.provider

@@ -21,18 +21,23 @@ struct Screener {
     filters: BTreeMap<TokenMetric, MetricBounds>,
     profiles: BTreeMap<String, Profile>,
 }
+
 fn logging_default() -> bool {
     true
 }
+
 fn filter_interval() -> u64 {
     3
 }
+
 fn timeframe() -> u64 {
     300
 }
+
 fn freshness() -> u64 {
     60
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profile {
@@ -42,6 +47,7 @@ struct Profile {
     #[serde(default)]
     signal: Option<toml::Table>,
 }
+
 pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), ConfigError> {
     let input: Screener = input.try_into().map_err(|_| ConfigError::Parse)?;
     if input.kind != "pump_high"
@@ -55,6 +61,7 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
             "screener kind/profiles/timeframe/freshness".into(),
         ));
     }
+
     config.monitor.poll_interval_secs = input.filter_interval_minutes * 60;
     let template = config
         .strategies
@@ -72,11 +79,13 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
                 ));
             }
         }
+
         for (metric, bounds) in &filters {
             bounds
                 .validate(*metric)
                 .map_err(|_| ConfigError::Validation("invalid token filter bounds".into()))?;
         }
+
         let mut strategy = template.clone();
         strategy.logging = profile.logging.unwrap_or(input.logging);
         strategy.id = domain::InstanceId::new(name)
@@ -90,6 +99,7 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
         if let Some(overrides) = profile.signal {
             signal.extend(overrides);
         }
+
         strategy
             .config
             .insert("signal".into(), toml::Value::Table(signal));
@@ -111,6 +121,7 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
         );
         config.strategies.push(strategy);
     }
+
     let range = config
         .plugins
         .iter_mut()

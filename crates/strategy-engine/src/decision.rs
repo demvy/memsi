@@ -20,6 +20,7 @@ pub(crate) fn decide(
         snapshot_hash =
             ContentHash::of(&(&snapshot_hash, trend)).map_err(|_| "invalid trend snapshot")?;
     }
+
     let mut input_snapshot_hash =
         ContentHash::of(&(1u8, pool, &analysis.input_hash, evaluation.as_of))
             .map_err(|_| "invalid input snapshot")?;
@@ -30,6 +31,7 @@ pub(crate) fn decide(
             ContentHash::of(&(&input_snapshot_hash, &evaluation.candidate.metrics))
                 .map_err(|_| "invalid metrics input")?;
     }
+
     let context = StrategyContext {
         candles: Some(&analysis.candles),
         candidate: evaluation.candidate,
@@ -41,17 +43,21 @@ pub(crate) fn decide(
         input_snapshot_hash,
         as_of: evaluation.as_of,
     };
+
     let result = catch_unwind(AssertUnwindSafe(|| strategy.evaluate(&context)));
     let mut decision = match result {
         Ok(Ok(decision)) if valid_decision(&decision, strategy, &context) => decision,
         _ => return Err("strategy returned an invalid result or panicked"),
     };
+
     decision.evidence.candle_input_hash = Some(analysis.candle_input_hash.clone());
     if !evaluation.pools.coverage.complete {
         decision.warnings.push("PartialDiscoveryCoverage".into());
     }
+
     Ok(decision)
 }
+
 fn valid_decision(
     decision: &StrategyDecision,
     strategy: &dyn Strategy,
@@ -62,11 +68,13 @@ fn valid_decision(
     }) {
         return false;
     }
+
     if decision.evidence.token_metrics.as_ref()
         != (!context.candidate.metrics.is_empty()).then_some(&context.candidate.metrics)
     {
         return false;
     }
+
     let evidence_matches = ContentHash::of(&(
         &decision.evidence.range,
         &decision.evidence.volume,

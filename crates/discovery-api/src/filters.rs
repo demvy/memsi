@@ -12,8 +12,10 @@ pub fn union_lower_bound(profiles: &[Option<MetricBounds>]) -> Option<MetricBoun
         if !boundary.0.is_finite() || boundary.0 < 0.0 {
             return None;
         }
+
         lower.push(boundary);
     }
+
     let (value, strict) = lower
         .into_iter()
         .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)))?;
@@ -23,6 +25,7 @@ pub fn union_lower_bound(profiles: &[Option<MetricBounds>]) -> Option<MetricBoun
         ..Default::default()
     })
 }
+
 /// Broad OR-envelope for upper bounds: largest ceiling; inclusive wins ties.
 pub fn union_upper_bound(profiles: &[Option<MetricBounds>]) -> Option<MetricBounds> {
     let mut upper = Vec::new();
@@ -35,8 +38,10 @@ pub fn union_upper_bound(profiles: &[Option<MetricBounds>]) -> Option<MetricBoun
         if !boundary.0.is_finite() || boundary.0 < 0.0 {
             return None;
         }
+
         upper.push(boundary);
     }
+
     let (value, strict) = upper
         .into_iter()
         .max_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)))?;

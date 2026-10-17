@@ -43,6 +43,7 @@ pub enum TokenMetric {
     BundlerSupplyPct,
     BundlerCount,
 }
+
 impl TokenMetric {
     pub fn is_percentage(self) -> bool {
         matches!(
@@ -56,10 +57,12 @@ impl TokenMetric {
                 | Self::BundlerSupplyPct
         )
     }
+
     pub fn is_count(self) -> bool {
         matches!(self, Self::SniperCount | Self::BundlerCount)
     }
 }
+
 pub type TokenMetrics = BTreeMap<TokenMetric, Observation<NonNegative>>;
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -69,6 +72,7 @@ pub struct MetricBounds {
     pub lt: Option<f64>,
     pub lte: Option<f64>,
 }
+
 impl MetricBounds {
     pub fn validate(&self, metric: TokenMetric) -> Result<(), DomainError> {
         let values = [self.gt, self.gte, self.lt, self.lte];
@@ -84,13 +88,16 @@ impl MetricBounds {
         {
             return Err(DomainError::Market("invalid metric bounds"));
         }
+
         if let (Some(lower), Some(upper)) = (self.gt.or(self.gte), self.lt.or(self.lte))
             && (lower > upper || (lower == upper && (self.gt.is_some() || self.lt.is_some())))
         {
             return Err(DomainError::Market("empty metric interval"));
         }
+
         Ok(())
     }
+
     pub fn accepts(&self, value: f64) -> bool {
         value.is_finite()
             && self.gt.is_none_or(|v| value > v)

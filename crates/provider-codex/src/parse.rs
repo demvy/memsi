@@ -4,27 +4,33 @@ use serde_json::Value;
 fn schema(field: &str) -> ProviderError {
     ProviderError::InvalidSchema(field.into())
 }
+
 fn string<'a>(v: &'a Value, field: &str) -> Result<&'a str, ProviderError> {
     v.get(field)
         .and_then(Value::as_str)
         .ok_or_else(|| schema(field))
 }
+
 fn network(v: &Value, expected: i32) -> Result<(), ProviderError> {
     if v.get("networkId").and_then(Value::as_i64) != Some(expected as i64) {
         return Err(ProviderError::InvalidData(
             "network identity mismatch".into(),
         ));
     }
+
     Ok(())
 }
+
 fn number(v: &Value) -> Result<NonNegative, ProviderError> {
     let n = if let Some(s) = v.as_str() {
         s.parse::<f64>().map_err(|_| schema("numeric string"))?
     } else {
         v.as_f64().ok_or_else(|| schema("number"))?
     };
+
     Ok(NonNegative::new(n)?)
 }
+
 pub(crate) fn observation(
     v: &Value,
     field: &str,
@@ -40,6 +46,7 @@ pub(crate) fn observation(
         })),
     }
 }
+
 pub(super) fn pool(
     v: &Value,
     chain: &ChainId,
@@ -69,9 +76,11 @@ pub(super) fn pool(
             )?),
         },
     };
+
     out.validate()?;
     Ok(out)
 }
+
 pub(super) fn candidate(
     v: &Value,
     chain: &ChainId,
@@ -95,6 +104,7 @@ pub(super) fn candidate(
         liquidity_usd: observation(v, "liquidity", fetched)?,
     })
 }
+
 pub(super) fn bars(
     v: &Value,
     r: &CandleRequest,
@@ -108,9 +118,11 @@ pub(super) fn bars(
                 need: r.min_bars,
             });
         }
+
         Some("ok") => {}
         _ => return Err(schema("bars status")),
     }
+
     let arrays = ["t", "o", "h", "l", "c", "buyVolume", "sellVolume"].map(|key| {
         v.get(key)
             .and_then(Value::as_array)
@@ -121,6 +133,7 @@ pub(super) fn bars(
     if t.len() > 1500 || [o, h, l, c, buy, sell].iter().any(|a| a.len() != t.len()) {
         return Err(schema("parallel array lengths"));
     }
+
     let mut candles = Vec::new();
     for i in 0..t.len() {
         let time =
@@ -128,6 +141,7 @@ pub(super) fn bars(
         if time < r.from_inclusive || time >= r.end_exclusive {
             continue;
         }
+
         let volume = if buy[i].is_null() || sell[i].is_null() {
             Knowledge::unknown()
         } else {
@@ -135,6 +149,7 @@ pub(super) fn bars(
                 number(&buy[i])?.get() + number(&sell[i])?.get(),
             )?)
         };
+
         let mut candle = Candle::new(
             time,
             number(&o[i])?.get(),
@@ -148,17 +163,21 @@ pub(super) fn bars(
         } else {
             Knowledge::known(number(&buy[i])?)
         };
+
         candles.push(candle);
     }
+
     if candles.len() > r.max_bars {
         return Err(schema("requested bar bound"));
     }
+
     if candles.len() < r.min_bars {
         return Err(ProviderError::InsufficientHistory {
             have: candles.len(),
             need: r.min_bars,
         });
     }
+
     let input_hash = ContentHash::of(&(r, &candles)).map_err(|_| schema("input hash"))?;
     let out = CandleSeries {
         pool: r.pool.clone(),
@@ -175,6 +194,7 @@ pub(super) fn bars(
             input_hash,
         },
     };
+
     out.validate(r.min_bars)?;
     Ok(out)
 }

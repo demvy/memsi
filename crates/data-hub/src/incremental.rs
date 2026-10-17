@@ -15,6 +15,7 @@ pub(super) fn can_extend(series: &CandleSeries, request: &CandleRequest) -> bool
         && series.end_exclusive.get() - request.from_inclusive.get()
             > 2 * request.resolution.millis()
 }
+
 pub(super) fn delta_request(
     series: &CandleSeries,
     request: &CandleRequest,
@@ -32,9 +33,11 @@ pub(super) fn delta_request(
         max_bars: count,
         ..request.clone()
     };
+
     delta.validate()?;
     Ok(delta)
 }
+
 pub(super) fn merge(
     prefix: &CandleSeries,
     mut delta: CandleSeries,
@@ -49,6 +52,7 @@ pub(super) fn merge(
             "incremental candle provenance/units changed".into(),
         ));
     }
+
     let mut candles: Vec<_> = prefix
         .candles
         .iter()

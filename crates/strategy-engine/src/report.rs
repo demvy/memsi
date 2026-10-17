@@ -6,6 +6,7 @@ pub struct ProbeTrace {
     pub pool: PoolId,
     pub reason: String,
 }
+
 #[derive(Debug, Serialize)]
 pub struct StrategyReport {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -15,6 +16,7 @@ pub struct StrategyReport {
     pub unavailable: Option<String>,
     pub trace: Vec<ProbeTrace>,
 }
+
 impl StrategyReport {
     pub(crate) fn unavailable(instance: &InstanceId, reason: impl ToString) -> Self {
         Self {
@@ -25,12 +27,14 @@ impl StrategyReport {
             trace: vec![],
         }
     }
+
     pub(crate) fn record(&mut self, pool: &PoolId, reason: impl ToString) {
         self.trace.push(ProbeTrace {
             pool: pool.clone(),
             reason: reason.to_string(),
         });
     }
+
     /// Delivery must still pass SignalService policies and deduplication.
     pub fn may_notify(&self) -> bool {
         self.decision.as_ref().is_some_and(|decision| {
@@ -38,6 +42,7 @@ impl StrategyReport {
         })
     }
 }
+
 /// Token-only screening has no pool or candle evidence and cannot emit a signal.
 pub fn screen_token_metrics(
     strategy: &dyn strategy_api::Strategy,

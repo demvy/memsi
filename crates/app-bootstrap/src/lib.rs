@@ -20,6 +20,7 @@ pub enum BootstrapError {
     #[error("this build supports observe and signal modes only")]
     UnsupportedMode,
 }
+
 /// Offline construction: no credentials, sockets, workers or global registries.
 pub struct Application {
     pub events: std::sync::Arc<monitor_runtime::events::EventRouter>,
@@ -32,6 +33,7 @@ pub struct Application {
     pub analyzers: BTreeMap<InstanceId, Box<dyn Analyzer>>,
     pub initialization_order: Vec<InstanceId>,
 }
+
 pub fn catalog() -> Result<PluginCatalog, RegistryError> {
     #[allow(unused_mut)]
     let mut catalog = PluginCatalog::default();
@@ -53,11 +55,13 @@ pub fn catalog() -> Result<PluginCatalog, RegistryError> {
     catalog.register(notification_telegram::descriptor())?;
     Ok(catalog)
 }
+
 pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
     config.validate()?;
     if !matches!(config.mode, AppMode::Observe | AppMode::Signal) {
         return Err(BootstrapError::UnsupportedMode);
     }
+
     let catalog = catalog()?;
     #[allow(unused_mut)]
     let mut analyzers: BTreeMap<InstanceId, Box<dyn Analyzer>> = BTreeMap::new();
@@ -78,6 +82,7 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
             {
                 return Err(BootstrapError::Section(instance.id.clone()));
             }
+
             let (sink, destination) = build_sink(instance)?;
             configured.push(ConfiguredPlugin {
                 instance: instance.id.clone(),
@@ -93,6 +98,7 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
             sinks.insert(instance.id.clone(), sink);
             continue;
         }
+
         if descriptor.kind == plugin_api::PluginKind::Strategy {
             if !config
                 .strategies
@@ -101,6 +107,7 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
             {
                 return Err(BootstrapError::Section(instance.id.clone()));
             }
+
             let strategy = build_strategy(instance)?;
             let requires: Vec<_> = strategy
                 .requirements()
@@ -125,13 +132,16 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
             strategies.insert(instance.id.clone(), strategy);
             continue;
         }
+
         if !config.plugins.iter().any(|p| p.id == instance.id) {
             return Err(BootstrapError::Section(instance.id.clone()));
         }
+
         if descriptor.kind == plugin_api::PluginKind::StateStore {
             if state.is_some() {
                 return Err(BootstrapError::PluginConfig(instance.id.clone()));
             }
+
             state = Some(build_state_plan(instance)?);
             configured.push(ConfiguredPlugin {
                 instance: instance.id.clone(),
@@ -142,6 +152,7 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
             });
             continue;
         }
+
         #[cfg(feature = "codex")]
         let invalid = || BootstrapError::PluginConfig(instance.id.clone());
         #[cfg(feature = "codex")]
@@ -160,6 +171,7 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
             providers.insert(instance.id.clone(), std::sync::Arc::new(provider));
             continue;
         }
+
         let analyzer = build_analyzer(instance)?;
         configured.push(ConfiguredPlugin {
             instance: instance.id.clone(),
@@ -169,15 +181,18 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
         });
         analyzers.insert(instance.id.clone(), analyzer);
     }
+
     if config.mode == AppMode::Signal && (sinks.is_empty() || strategies.is_empty()) {
         return Err(BootstrapError::Config(app_config::ConfigError::Validation(
             "signal mode requires enabled strategies and notification sinks".into(),
         )));
     }
+
     let initialization_order = plugin_api::validate_instances(&configured)?;
     for strategy in strategies.values() {
         strategy_engine::planner::plan(strategy.as_ref(), &analyzers)?;
     }
+
     Ok(Application {
         events: std::sync::Arc::new(monitor_runtime::events::EventRouter::default()),
         state: state.unwrap_or_default(),
@@ -190,6 +205,7 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
         providers,
     })
 }
+
 fn build_analyzer(
     instance: &app_config::PluginInstance,
 ) -> Result<Box<dyn Analyzer>, BootstrapError> {
@@ -223,6 +239,7 @@ fn build_analyzer(
         _ => Err(RegistryError::NotCompiled(instance.plugin.clone()).into()),
     }
 }
+
 fn build_strategy(
     instance: &app_config::PluginInstance,
 ) -> Result<Box<dyn Strategy>, BootstrapError> {
@@ -230,6 +247,7 @@ fn build_strategy(
         app_config::InstanceMode::Active => StrategyMode::Active,
         app_config::InstanceMode::Shadow => StrategyMode::Shadow,
     };
+
     let invalid = || BootstrapError::PluginConfig(instance.id.clone());
     match instance.plugin.as_str() {
         #[cfg(feature = "low-risk")]
@@ -256,6 +274,7 @@ fn build_strategy(
         }
     }
 }
+
 type BuiltSink = (
     std::sync::Arc<dyn notification_api::NotificationSink>,
     String,
@@ -274,6 +293,7 @@ fn build_sink(instance: &app_config::PluginInstance) -> Result<BuiltSink, Bootst
                 "stdout".into(),
             ))
         }
+
         #[cfg(feature = "telegram")]
         "notification.telegram" => {
             let config = instance.config.clone().try_into().map_err(|_| invalid())?;
@@ -282,17 +302,20 @@ fn build_sink(instance: &app_config::PluginInstance) -> Result<BuiltSink, Bootst
             let destination = sink.destination().to_owned();
             Ok((std::sync::Arc::new(sink), destination))
         }
+
         _ => {
             let _ = invalid;
             Err(RegistryError::NotCompiled(instance.plugin.clone()).into())
         }
     }
 }
+
 #[derive(Default)]
 pub enum StatePlan {
     #[default]
     Memory,
 }
+
 impl StatePlan {
     /// Runtime startup only; offline build/config-check never opens a database.
     pub async fn open(&self) -> Result<Box<dyn state_api::StateStore>, state_api::StateError> {
@@ -303,9 +326,11 @@ impl StatePlan {
         }
     }
 }
+
 fn build_state_plan(instance: &app_config::PluginInstance) -> Result<StatePlan, BootstrapError> {
     Err(RegistryError::NotCompiled(instance.plugin.clone()).into())
 }
+
 impl Application {
     pub fn market<P: provider_api::MarketProvider + 'static>(
         &self,
@@ -314,12 +339,14 @@ impl Application {
         Ok(provider)
     }
 }
+
 pub struct MonitorProvider {
     pub observations: Option<std::sync::Arc<dyn provider_api::TransportObservationReader>>,
     pub id: InstanceId,
     pub market: std::sync::Arc<dyn provider_api::MarketProvider>,
     pub source: std::sync::Arc<dyn discovery_api::CandidateSource>,
 }
+
 impl Application {
     /// Select a discovery-capable market provider, without touching network or credentials.
     pub fn take_monitor_provider(
@@ -343,6 +370,7 @@ impl Application {
                 )));
             }
         };
+
         #[cfg(feature = "codex")]
         if let Some(provider) = self.providers.remove(&id) {
             let market = self
@@ -355,19 +383,109 @@ impl Application {
                 observations: Some(provider),
             });
         }
+
         Err(BootstrapError::PluginConfig(id))
     }
 }
+
 #[derive(serde::Serialize)]
 #[serde(tag = "observation", rename_all = "snake_case")]
 pub enum StateInspection {
     VolatileProcessStateUnavailable,
 }
+
 impl StatePlan {
     /// Read counters without claiming work, migration or exclusive ownership.
     pub async fn inspect(&self) -> Result<StateInspection, state_api::StateError> {
         match self {
             Self::Memory => Ok(StateInspection::VolatileProcessStateUnavailable),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config() -> AppConfig {
+        AppConfig {
+            schema_version: 1,
+            mode: AppMode::Observe,
+            chain: domain::ChainId::Evm { chain_id: 1 },
+            monitor: Default::default(),
+            plugins: vec![],
+            strategies: vec![],
+            notifications: vec![],
+        }
+    }
+
+    #[test]
+    fn empty_observe_application_builds_offline_and_rejects_unsupported_modes() {
+        let app = build(&config()).unwrap();
+        assert!(app.initialization_order.is_empty());
+        assert!(app.strategies.is_empty());
+        assert!(app.sinks.is_empty());
+        for mode in [AppMode::Paper, AppMode::Live] {
+            let mut invalid = config();
+            invalid.mode = mode;
+            assert!(matches!(
+                build(&invalid),
+                Err(BootstrapError::UnsupportedMode)
+            ));
+        }
+
+        let mut signal = config();
+        signal.mode = AppMode::Signal;
+        assert!(matches!(build(&signal), Err(BootstrapError::Config(_))));
+    }
+
+    #[tokio::test]
+    async fn state_plan_opens_fresh_volatile_state_and_inspects_without_claiming_work() {
+        let plan = StatePlan::default();
+        let state = plan.open().await.unwrap();
+        assert_eq!(state.stats().await.unwrap().signals, 0);
+        assert!(matches!(
+            plan.inspect().await.unwrap(),
+            StateInspection::VolatileProcessStateUnavailable
+        ));
+    }
+
+    #[test]
+    fn disabled_plugins_are_ignored_and_unknown_enabled_plugins_fail() {
+        let mut config = config();
+        let instance = app_config::PluginInstance {
+            id: InstanceId::new("missing").unwrap(),
+            plugin: domain::PluginId::new("not.compiled").unwrap(),
+            enabled: false,
+            logging: true,
+            mode: Default::default(),
+            config: Default::default(),
+        };
+        config.plugins.push(instance.clone());
+        assert!(build(&config).is_ok());
+        config.plugins[0].enabled = true;
+        assert!(matches!(
+            build(&config),
+            Err(BootstrapError::Registry(RegistryError::NotCompiled(_)))
+        ));
+        assert!(build_analyzer(&instance).is_err());
+        assert!(build_strategy(&instance).is_err());
+        assert!(build_sink(&instance).is_err());
+        assert!(build_state_plan(&instance).is_err());
+    }
+
+    #[test]
+    fn monitor_provider_selection_rejects_ambiguous_missing_and_invalid_ids() {
+        let mut app = build(&config()).unwrap();
+        assert!(app.take_monitor_provider(None).is_err());
+        assert!(app.take_monitor_provider(Some("missing")).is_err());
+        assert!(app.take_monitor_provider(Some("INVALID")).is_err());
+        let descriptors: Vec<_> = catalog()
+            .unwrap()
+            .descriptors()
+            .map(|descriptor| descriptor.id.clone())
+            .collect();
+        let unique: std::collections::BTreeSet<_> = descriptors.iter().collect();
+        assert_eq!(descriptors.len(), unique.len());
     }
 }

@@ -11,11 +11,13 @@ pub struct Notification {
     pub destination: String,
     pub part_index: u32,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeliveryReceipt {
     pub remote_message_id: Option<String>,
     pub accepted_at: TimestampMs,
 }
+
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum NotificationError {
     #[error("rate limited: {retry_after_ms} ms")]
@@ -33,6 +35,7 @@ pub enum NotificationError {
     #[error("cancelled")]
     Cancelled,
 }
+
 #[async_trait]
 pub trait NotificationSink: Send + Sync {
     fn id(&self) -> &InstanceId;
@@ -44,9 +47,45 @@ pub trait NotificationSink: Send + Sync {
     ) -> Result<DeliveryReceipt, NotificationError> {
         Err(NotificationError::InvalidPayload)
     }
+
     async fn send(
         &self,
         notification: &Notification,
         ctx: &provider_api::RequestContext,
     ) -> Result<DeliveryReceipt, NotificationError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    struct SignalOnlySink(InstanceId);
+    #[async_trait]
+    impl NotificationSink for SignalOnlySink {
+        fn id(&self) -> &InstanceId {
+            &self.0
+        }
+        async fn send(
+            &self,
+            _: &Notification,
+            _: &provider_api::RequestContext,
+        ) -> Result<DeliveryReceipt, NotificationError> {
+            Err(NotificationError::Transport)
+        }
+    }
+
+    #[tokio::test]
+    async fn default_notice_hook_rejects_unsupported_operational_messages() {
+        let sink = SignalOnlySink(InstanceId::new("test").unwrap());
+        let context = provider_api::RequestContext {
+            priority: Default::default(),
+            deadline: Instant::now() + Duration::from_secs(60),
+            cancellation: Default::default(),
+        };
+        assert_eq!(
+            sink.send_notice("notice", &context).await.unwrap_err(),
+            NotificationError::InvalidPayload
+        );
+    }
 }

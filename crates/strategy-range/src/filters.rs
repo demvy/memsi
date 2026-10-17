@@ -33,6 +33,7 @@ pub(super) fn evaluate(
         },
     )
 }
+
 pub(super) fn screen(
     candidate: &Candidate,
     now: TimestampMs,
@@ -55,6 +56,7 @@ pub(super) fn screen(
         None => strategy_api::MetricScreen::Continue,
     }
 }
+
 fn token_value(
     candidate: &Candidate,
     metric: &TokenMetric,
@@ -83,6 +85,7 @@ fn token_value(
                 }
         })
 }
+
 fn check(
     config: &StrategyConfig,
     value: impl Fn(&TokenMetric) -> Option<f64>,
@@ -95,6 +98,7 @@ fn check(
         if token_only && *metric == TokenMetric::PoolLiquidityUsd {
             continue;
         }
+
         let value = value(metric);
         let reason = DecisionReason {
             code: if value.is_none() {
@@ -107,6 +111,7 @@ fn check(
             actual: value.map(|v| v.to_string()),
             expected: format!("{bounds:?}"),
         };
+
         match value {
             None => unknown.push(reason),
             Some(value)
@@ -115,10 +120,12 @@ fn check(
             {
                 unknown.push(reason)
             }
+
             Some(value) if !bounds.accepts(value) => failed.push(reason),
             Some(_) => {}
         }
     }
+
     if !failed.is_empty() {
         Some((Verdict::Reject, failed))
     } else if !unknown.is_empty() {
@@ -127,6 +134,7 @@ fn check(
         None
     }
 }
+
 fn unavailable_code(
     observation: Option<&Observation<NonNegative>>,
     now: TimestampMs,

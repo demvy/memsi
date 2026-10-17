@@ -7,6 +7,7 @@ use state_memory::{Limits, MemoryState};
 fn time(ms: i64) -> TimestampMs {
     TimestampMs::new(ms).unwrap()
 }
+
 fn draft(id: &str, key: &str) -> SignalDraft {
     let chain = ChainId::Evm { chain_id: 1 };
     SignalDraft {
@@ -30,12 +31,14 @@ fn draft(id: &str, key: &str) -> SignalDraft {
         cooldown_secs: 60,
     }
 }
+
 fn targets() -> Vec<DeliveryTarget> {
     vec![DeliveryTarget {
         sink: InstanceId::new("console").unwrap(),
         destination: "stdout".into(),
     }]
 }
+
 fn worker() -> InstanceId {
     InstanceId::new("worker").unwrap()
 }
@@ -246,6 +249,7 @@ async fn pagination_contract(state: &dyn SignalRepository) {
             .await
             .unwrap();
     }
+
     let full = state.list_signals(10).await.unwrap();
     let page = state.signal_history(None, 1).await.unwrap();
     assert_eq!(page[0].id, full[0].id);
@@ -253,12 +257,14 @@ async fn pagination_contract(state: &dyn SignalRepository) {
         created_at: page[0].created_at,
         id: page[0].id.clone(),
     };
+
     let second = state.signal_history(Some(&cursor), 1).await.unwrap();
     assert_eq!(second[0].id, full[1].id);
     let cursor = SignalCursor {
         created_at: second[0].created_at,
         id: second[0].id.clone(),
     };
+
     let last = state.signal_history(Some(&cursor), 200).await.unwrap();
     assert_eq!(last.len(), 1);
     assert_eq!(last[0].id, full[2].id);

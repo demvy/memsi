@@ -19,6 +19,7 @@ impl AppConfig {
                         "MEME__STRATEGIES_FILE" => {
                             value["strategies_file"] = toml::Value::String(text.clone())
                         }
+
                         "MEME__TELEGRAM" => {
                             let enabled = text.parse().map_err(|_| {
                                 ConfigError::Validation("invalid telegram override".into())
@@ -28,6 +29,7 @@ impl AppConfig {
                                 .ok_or(ConfigError::Parse)?
                                 .insert("telegram".into(), toml::Value::Boolean(enabled));
                         }
+
                         key if key.starts_with("MEME__API_USAGE__") => {
                             let field = key
                                 .trim_start_matches("MEME__API_USAGE__")
@@ -38,9 +40,11 @@ impl AppConfig {
                                         ConfigError::Validation("invalid API usage override".into())
                                     })?)
                                 }
+
                                 "database" | "initial_period" => toml::Value::String(text.clone()),
                                 _ => return Err(ConfigError::UnknownOverride(key.into())),
                             };
+
                             let table = value
                                 .as_table_mut()
                                 .ok_or(ConfigError::Parse)?
@@ -51,12 +55,15 @@ impl AppConfig {
                                 .ok_or(ConfigError::Parse)?
                                 .insert(field, entry);
                         }
+
                         _ => (),
                     }
                 }
             }
+
             value = simple::expand(value, path)?;
         }
+
         for overrides in [&local, environment, cli] {
             for (key, text) in overrides {
                 if compact
@@ -65,6 +72,7 @@ impl AppConfig {
                 {
                     continue;
                 }
+
                 let path = key
                     .strip_prefix("MEME__")
                     .ok_or_else(|| ConfigError::UnknownOverride(key.clone()))?
@@ -83,6 +91,7 @@ impl AppConfig {
                 if !allowed.contains(&path.as_str()) {
                     return Err(ConfigError::UnknownOverride(key.clone()));
                 }
+
                 if path == "mode" {
                     value
                         .as_table_mut()
@@ -104,6 +113,7 @@ impl AppConfig {
                 }
             }
         }
+
         let config: Self = value.try_into().map_err(|_| ConfigError::Parse)?;
         config.validate()?;
         Ok(config)

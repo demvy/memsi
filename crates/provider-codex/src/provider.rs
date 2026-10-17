@@ -13,6 +13,7 @@ pub struct CodexProvider {
     pub(crate) admission: Admission,
     pub(crate) observations: std::sync::Arc<observations::Observations>,
 }
+
 pub fn descriptor() -> plugin_api::PluginDescriptor {
     plugin_api::PluginDescriptor {
         id: PluginId::new("provider.codex").unwrap(),
@@ -24,6 +25,7 @@ pub fn descriptor() -> plugin_api::PluginDescriptor {
             .collect(),
     }
 }
+
 pub(crate) fn now() -> Result<TimestampMs, ProviderError> {
     let ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -32,6 +34,7 @@ pub(crate) fn now() -> Result<TimestampMs, ProviderError> {
     TimestampMs::new(i64::try_from(ms).map_err(|_| ProviderError::InvalidRequest)?)
         .map_err(Into::into)
 }
+
 impl CodexProvider {
     pub fn new(chain: ChainId, config: CodexConfig) -> Result<Self, ProviderError> {
         chain.validate()?;
@@ -43,9 +46,11 @@ impl CodexProvider {
                     && config.network_id == 1399811149
             }
         };
+
         if !mapped {
             return Err(ProviderError::InvalidRequest);
         }
+
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(30))
@@ -64,16 +69,19 @@ impl CodexProvider {
             client,
         })
     }
+
     pub(crate) async fn usage_status(&self) -> Result<Option<ApiUsageStatus>, ProviderError> {
         let Some(ledger) = &self.usage else {
             return Ok(None);
         };
+
         let mut keys = Vec::new();
         for reference in std::iter::once(&self.config.api_key).chain(&self.config.fallback_api_keys)
         {
             let Ok(key) = reference.resolve() else {
                 continue;
             };
+
             let usage = ledger.status(&key).await?;
             if !keys
                 .iter()
@@ -82,21 +90,27 @@ impl CodexProvider {
                 keys.push(usage);
             }
         }
+
         if keys.is_empty() {
             return Err(ProviderError::Unauthorized);
         }
+
         let exhausted = keys.iter().all(|usage| usage.used >= usage.limit);
         Ok(Some(ApiUsageStatus { keys, exhausted }))
     }
+
     pub fn transport_observations(&self) -> Option<TransportObservations> {
         self.observations.snapshot()
     }
+
     pub(crate) fn check_chain(&self, chain: &ChainId) -> Result<(), ProviderError> {
         if chain != &self.chain {
             return Err(ProviderError::Unsupported("chain".into()));
         }
+
         Ok(())
     }
+
     pub(crate) fn symbol(&self, pool: &PoolId) -> Result<String, ProviderError> {
         self.check_chain(pool.chain())?;
         Ok(format!(
@@ -106,12 +120,14 @@ impl CodexProvider {
             self.config.network_id
         ))
     }
+
     pub(crate) fn resolve_credential(&self) -> Result<String, ProviderError> {
         std::iter::once(&self.config.api_key)
             .chain(&self.config.fallback_api_keys)
             .find_map(|reference| reference.resolve().ok())
             .ok_or(ProviderError::Unauthorized)
     }
+
     pub(crate) async fn query(
         &self,
         query: &str,
@@ -127,6 +143,7 @@ impl CodexProvider {
         )
         .await
     }
+
     pub(crate) async fn query_at(
         &self,
         query: &str,
@@ -140,6 +157,7 @@ impl CodexProvider {
             .await?;
         serde_json::from_str(data.get()).map_err(|_| ProviderError::InvalidSchema("JSON".into()))
     }
+
     pub(crate) async fn query_raw_at(
         &self,
         query: &str,
@@ -155,6 +173,7 @@ impl CodexProvider {
         guard.finish(&result);
         result
     }
+
     async fn query_raw_inner(
         &self,
         query: &str,
@@ -174,6 +193,7 @@ impl CodexProvider {
                 if key.is_none() {
                     key = Some(credential.take().expect("credential resolved once")()?);
                 }
+
                 if let Some(ledger) = &self.usage {
                     if !ledger
                         .charge(key.as_ref().ok_or(ProviderError::Unauthorized)?)
@@ -185,8 +205,10 @@ impl CodexProvider {
                             .collect::<Vec<_>>();
                         key = Some(ledger.charge_first(candidates).await?);
                     }
+
                     ctx.check()?;
                 }
+
                 self.observations.attempt(attempt > 0);
                 let started = std::time::Instant::now();
                 let result = self
@@ -200,6 +222,7 @@ impl CodexProvider {
                     Ok(response) => matches!(response.status().as_u16(), 502..=504),
                     Err(error) => error.is_timeout() || error.is_connect(),
                 };
+
                 let retrying = transient && attempt < 2;
                 match &result {
                     Err(error) => crate::diagnostics::failure(
@@ -218,8 +241,10 @@ impl CodexProvider {
                             retrying,
                         );
                     }
+
                     _ => {}
                 }
+
                 if retrying {
                     drop(result);
                     drop(permit);
@@ -236,6 +261,7 @@ impl CodexProvider {
                     attempt += 1;
                     continue;
                 }
+
                 let response = result.map_err(|error| {
                     if error.is_timeout() {
                         ProviderError::Timeout
@@ -245,6 +271,7 @@ impl CodexProvider {
                 })?;
                 break (permit, response);
             };
+
             match response.status().as_u16() {
                 401 | 403 => return Err(ProviderError::Unauthorized),
                 429 => {
@@ -261,9 +288,11 @@ impl CodexProvider {
                         .cooldown(Duration::from_millis(retry_after_ms))?;
                     return Err(ProviderError::RateLimited { retry_after_ms });
                 }
+
                 200 => {}
                 _ => return Err(ProviderError::Transport),
             }
+
             let mut body = Vec::new();
             let body_started = std::time::Instant::now();
             while let Some(chunk) = response.chunk().await.map_err(|_| {
@@ -280,13 +309,16 @@ impl CodexProvider {
                 if body.len() + chunk.len() > 4 * 1024 * 1024 {
                     return Err(ProviderError::InvalidSchema("body exceeds limit".into()));
                 }
+
                 body.extend_from_slice(&chunk);
             }
+
             #[derive(Deserialize)]
             struct Envelope {
                 errors: Option<Value>,
                 data: Option<Box<serde_json::value::RawValue>>,
             }
+
             let envelope: Envelope = serde_json::from_slice(&body)
                 .map_err(|_| ProviderError::InvalidSchema("JSON".into()))?;
             if envelope
@@ -298,16 +330,18 @@ impl CodexProvider {
                     "GraphQL operation failed".into(),
                 ));
             }
+
             envelope
                 .data
                 .filter(|data| data.get().trim_start().starts_with('{'))
                 .ok_or_else(|| ProviderError::InvalidSchema("missing data".into()))
         };
+
         tokio::pin!(work);
         loop {
             tokio::select! {
-                result =& mut work => return result, _ =
-                tokio::time::sleep(Duration::from_millis(25)) => ctx.check() ?,
+                result = &mut work => return result,
+                _ = tokio::time::sleep(Duration::from_millis(25)) => ctx.check()?,
             }
         }
     }

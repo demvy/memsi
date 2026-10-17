@@ -19,11 +19,13 @@ impl provider_api::TransportObservationReader for CodexProvider {
     fn transport_observations(&self) -> Option<TransportObservations> {
         self.observations.snapshot()
     }
+
     async fn api_usage(
         &self,
     ) -> Result<Option<provider_api::ApiUsageStatus>, provider_api::ProviderError> {
         self.usage_status().await
     }
+
     async fn claim_usage_notice(
         &self,
         usage: &provider_api::ApiKeyUsage,
@@ -35,3 +37,6 @@ impl provider_api::TransportObservationReader for CodexProvider {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

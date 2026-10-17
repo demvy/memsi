@@ -23,14 +23,17 @@ pub fn for_signal(signal: &Signal) -> Vec<SignalLink> {
                     url: format!("https://dexscreener.com/solana/{address}"),
                 });
             }
+
             links
         }
+
         ChainId::Evm { chain_id } => {
             let host = match chain_id {
                 1 => "etherscan.io",
                 8453 => "basescan.org",
                 _ => return vec![],
             };
+
             let mut links = vec![SignalLink {
                 label: "Token".into(),
                 url: format!("https://{host}/token/{}", signal.token.address()),
@@ -46,8 +49,10 @@ pub fn for_signal(signal: &Signal) -> Vec<SignalLink> {
                     url: format!("https://dexscreener.com/{network}/{address}"),
                 });
             }
+
             links
         }
+
         _ => vec![],
     }
 }

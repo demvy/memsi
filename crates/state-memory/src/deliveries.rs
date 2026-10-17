@@ -12,6 +12,7 @@ impl DeliveryRepository for MemoryState {
         if lease_secs == 0 || lease_secs > 300 || limit == 0 || limit > 64 {
             return Err(StateError::InvalidRequest);
         }
+
         let lease_until = now
             .checked_add(lease_secs as i64 * 1000)
             .map_err(|_| StateError::InvalidRequest)?;
@@ -42,13 +43,16 @@ impl DeliveryRepository for MemoryState {
                 notification: row.notification.clone(),
                 attempt: row.attempt,
             };
+
             row.status = DeliveryStatus::Sending;
             row.lease = Some(lease.clone());
             row.due = None;
             leases.push(lease);
         }
+
         Ok(leases)
     }
+
     async fn complete(
         &self,
         lease: &DeliveryLease,
@@ -63,6 +67,7 @@ impl DeliveryRepository for MemoryState {
         {
             return Err(StateError::InvalidRequest);
         }
+
         let mut inner = self.lock()?;
         let row = owned(&mut inner, lease, now)?;
         row.status = DeliveryStatus::Delivered;
@@ -71,6 +76,7 @@ impl DeliveryRepository for MemoryState {
         row.due = None;
         Ok(())
     }
+
     async fn retry(
         &self,
         lease: &DeliveryLease,
@@ -81,6 +87,7 @@ impl DeliveryRepository for MemoryState {
         if due < now {
             return Err(StateError::InvalidRequest);
         }
+
         let mut inner = self.lock()?;
         let row = owned(&mut inner, lease, now)?;
         row.status = if unknown_outcome {
@@ -90,10 +97,12 @@ impl DeliveryRepository for MemoryState {
         } else {
             DeliveryStatus::RetryScheduled
         };
+
         row.due = (!row.terminal() && due < row.notification.signal.expires_at).then_some(due);
         row.lease = None;
         Ok(())
     }
+
     async fn fail(&self, lease: &DeliveryLease, now: TimestampMs) -> Result<(), StateError> {
         let mut inner = self.lock()?;
         let row = owned(&mut inner, lease, now)?;
@@ -103,6 +112,7 @@ impl DeliveryRepository for MemoryState {
         Ok(())
     }
 }
+
 fn owned<'a>(
     inner: &'a mut Inner,
     lease: &DeliveryLease,
@@ -119,5 +129,6 @@ fn owned<'a>(
     {
         return Err(StateError::Conflict);
     }
+
     Ok(row)
 }

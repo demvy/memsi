@@ -32,11 +32,13 @@ pub(super) fn hard_failures(
             rejected.push(reason(code, field, Some(value), minimum));
         }
     }
+
     let quote = if pool.token0 == context.candidate.token {
         &pool.token1
     } else {
         &pool.token0
     };
+
     if !config.quote_tokens.is_empty() && !config.quote_tokens.contains(quote) {
         rejected.push(reason(
             "QUOTE_NOT_ALLOWED",
@@ -45,6 +47,7 @@ pub(super) fn hard_failures(
             "configured quote token",
         ));
     }
+
     if !config.research_only && !pool.concentrated_at(context.as_of) {
         rejected.push(reason(
             "POOL_KIND_NOT_ALLOWED",
@@ -53,6 +56,7 @@ pub(super) fn hard_failures(
             "concentrated pool",
         ));
     }
+
     if !config.protocols.is_empty()
         && !pool
             .protocol
@@ -66,9 +70,11 @@ pub(super) fn hard_failures(
             "configured protocol",
         ));
     }
+
     if range.state == RangeState::NoRange {
         rejected.push(reason("NO_RANGE", "range.state", None, "confirmed"));
     }
+
     if let Some(bounds) = &range.range
         && (bounds.width_pct.get() < 2. || bounds.width_pct.get() > thresholds.max_width_pct)
     {
@@ -79,6 +85,7 @@ pub(super) fn hard_failures(
             format!("2..={}", thresholds.max_width_pct),
         ));
     }
+
     rejected
 }
 
@@ -92,6 +99,7 @@ pub(super) fn watch_reasons(range: &RangeAnalysis, thresholds: Thresholds) -> Ve
             "confirmed",
         ));
     }
+
     if range.confidence.get() < thresholds.confidence {
         watch.push(reason(
             "RANGE_CONFIDENCE_LOW",
@@ -100,6 +108,7 @@ pub(super) fn watch_reasons(range: &RangeAnalysis, thresholds: Thresholds) -> Ve
             thresholds.confidence,
         ));
     }
+
     if range
         .range
         .as_ref()
@@ -112,6 +121,7 @@ pub(super) fn watch_reasons(range: &RangeAnalysis, thresholds: Thresholds) -> Ve
             "true",
         ));
     }
+
     watch
 }
 
@@ -129,6 +139,7 @@ pub(super) fn volume_failures(
             thresholds.activity,
         ));
     }
+
     let relative = (if robust {
         volume.robust.as_ref().and_then(|v| v.relative_volume)
     } else {
@@ -143,5 +154,6 @@ pub(super) fn volume_failures(
             thresholds.relative_volume,
         ));
     }
+
     reasons
 }

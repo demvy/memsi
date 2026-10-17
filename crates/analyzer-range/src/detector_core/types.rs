@@ -5,6 +5,7 @@ pub enum RangeState {
     RangeCandidate,
     RangeConfirmed,
 }
+
 #[derive(Clone, Debug)]
 pub struct RangeDetection {
     pub state: RangeState,
@@ -12,6 +13,7 @@ pub struct RangeDetection {
     pub range: Option<DetectedRange>,
     pub diagnostics: RangeDiagnostics,
 }
+
 #[derive(Clone, Debug)]
 pub struct DetectedRange {
     pub lower: f64,
@@ -24,6 +26,7 @@ pub struct DetectedRange {
     pub outside_streak: usize,
     pub confidence: f64,
 }
+
 #[derive(Clone, Debug, Default)]
 pub struct RangeDiagnostics {
     pub selected_window: Option<usize>,
@@ -40,6 +43,7 @@ pub struct RangeDiagnostics {
     pub outside_streak: usize,
     pub occupancy_entropy: f64,
 }
+
 #[derive(Clone, Copy, Debug)]
 pub struct Candle {
     pub timestamp_ms: i64,

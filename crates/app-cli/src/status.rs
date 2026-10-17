@@ -5,6 +5,7 @@ pub struct StatusArgs {
     #[arg(long, default_value = "memes-finder.toml")]
     config: PathBuf,
 }
+
 pub fn run(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>> {
     let environment =
         BTreeMap::from_iter(std::env::vars().filter(|(key, _)| key.starts_with("MEME__")));

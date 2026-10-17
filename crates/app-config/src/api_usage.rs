@@ -11,6 +11,7 @@ pub struct ApiUsageConfig {
     pub initial_period: Option<String>,
     pub initial_used: std::collections::BTreeMap<String, u64>,
 }
+
 impl Default for ApiUsageConfig {
     fn default() -> Self {
         Self {
@@ -23,6 +24,7 @@ impl Default for ApiUsageConfig {
         }
     }
 }
+
 impl ApiUsageConfig {
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.monthly_limit == 0
@@ -46,14 +48,17 @@ impl ApiUsageConfig {
                 "API usage limits/reset/database".into(),
             ));
         }
+
         Ok(())
     }
 }
+
 fn valid_period(period: &str) -> bool {
     let parts: Vec<_> = period.split('-').collect();
     if parts.len() != 3 || parts[0].len() != 4 || parts[1].len() != 2 || parts[2].len() != 2 {
         return false;
     }
+
     let (Ok(year), Ok(month), Ok(day)) = (
         parts[0].parse::<u16>(),
         parts[1].parse::<u8>(),
@@ -61,14 +66,53 @@ fn valid_period(period: &str) -> bool {
     ) else {
         return false;
     };
+
     let days = match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
         2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
             29
         }
+
         2 => 28,
         _ => return false,
     };
+
     year > 0 && (1..=days).contains(&day)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::valid_period;
+
+    #[test]
+    fn billing_period_dates_obey_gregorian_leap_years_and_month_lengths() {
+        for date in [
+            "2024-02-29",
+            "2000-02-29",
+            "2025-01-31",
+            "2025-04-30",
+            "0001-01-01",
+        ] {
+            assert!(valid_period(date), "{date}");
+        }
+
+        for date in [
+            "1900-02-29",
+            "2025-02-29",
+            "2025-04-31",
+            "2025-00-01",
+            "2025-13-01",
+            "2025-01-00",
+            "0000-01-01",
+            "2025-1-01",
+            "2025-01",
+            "2025-01-01-extra",
+            "abcd-01-01",
+            "2025-aa-01",
+            "2025-01-aa",
+        ] {
+            assert!(!valid_period(date), "{date}");
+        }
+    }
 }

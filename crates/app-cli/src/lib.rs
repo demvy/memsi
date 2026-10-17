@@ -31,6 +31,7 @@ struct Cli {
     #[command(subcommand)]
     command: Command,
 }
+
 #[derive(Subcommand)]
 enum Command {
     /// Inspect configured identities offline.
@@ -57,6 +58,7 @@ enum Command {
         config: PathBuf,
     },
 }
+
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     if cli.network.is_some() {
         let supported = matches!(&cli.command, Command::ConfigCheck { .. });
@@ -66,6 +68,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             return Err("--network is supported by monitor and config-check".into());
         }
     }
+
     match cli.command {
         Command::Status(args) => status::run(args)?,
         Command::Monitor(args) => live::runtime()?.block_on(monitor::run(args, cli.network))?,
@@ -79,8 +82,10 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 serde_json::to_string_pretty(&plugins)?
             };
+
             println!("{output}");
         }
+
         Command::Strategies { config } => {
             let environment = std::env::vars()
                 .filter(|(key, _)| key.starts_with("MEME__"))
@@ -97,6 +102,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 serde_json::to_string_pretty(&app_api::StrategyCatalogEnvelope::new(strategies))?
             );
         }
+
         Command::ConfigCheck { config } => {
             let environment: BTreeMap<_, _> = std::env::vars()
                 .filter(|(key, _)| key.starts_with("MEME__"))
@@ -105,6 +111,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             if let Some(network) = cli.network {
                 config.select_network(network)?;
             }
+
             let app = app_bootstrap::build(&config)?;
             if let Some(network) = cli.network {
                 println!(
@@ -112,14 +119,17 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     network.codex_id()
                 );
             }
+
             println!(
                 "Configuration valid: {} enabled plugin instances (offline).",
                 app.initialization_order.len()
             );
         }
     }
+
     Ok(())
 }
+
 /// Run the shared CLI with the public executable name used in help output.
 pub fn entrypoint(binary_name: &'static str) -> ExitCode {
     let json_requested = std::env::args_os().any(|arg| arg == "--error-json");
@@ -135,14 +145,17 @@ pub fn entrypoint(binary_name: &'static str) -> ExitCode {
                 let _ = error.print();
                 return ExitCode::SUCCESS;
             }
+
             if json_requested {
                 print_json_error("invalid_request", "invalid command arguments");
             } else {
                 let _ = error.print();
             }
+
             return ExitCode::FAILURE;
         }
     };
+
     let error_json = cli.error_json;
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
@@ -152,10 +165,12 @@ pub fn entrypoint(binary_name: &'static str) -> ExitCode {
             } else {
                 eprintln!("{error}");
             }
+
             ExitCode::FAILURE
         }
     }
 }
+
 fn print_json_error(code: &'static str, message: &'static str) {
     let error = app_api::ErrorEnvelope::new(code, message, format!("cli-{}", std::process::id()));
     eprintln!(
@@ -163,3 +178,6 @@ fn print_json_error(code: &'static str, message: &'static str) {
         serde_json::to_string(&error).expect("static error envelope serializes")
     );
 }
+
+#[cfg(test)]
+mod tests;

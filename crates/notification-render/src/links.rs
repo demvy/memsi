@@ -8,15 +8,18 @@ pub fn gmgn_url(signal: &signal_api::Signal) -> Option<String> {
         {
             "sol"
         }
+
         ChainId::Evm { chain_id: 1 } => "eth",
         ChainId::Evm { chain_id: 8453 } => "base",
         _ => return None,
     };
+
     Some(format!(
         "https://gmgn.ai/{chain}/token/{}",
         signal.token.address()
     ))
 }
+
 pub fn defined_url(signal: &signal_api::Signal) -> Option<String> {
     let network = match signal.token.chain() {
         ChainId::Solana { genesis_hash }
@@ -24,17 +27,20 @@ pub fn defined_url(signal: &signal_api::Signal) -> Option<String> {
         {
             "sol"
         }
+
         ChainId::Evm { chain_id: 1 } => "eth",
         ChainId::Evm { chain_id: 8453 } => "base",
         ChainId::Evm { chain_id: 4663 } => "robinhood",
         ChainId::Evm { chain_id: 5042 } => "arc",
         _ => return None,
     };
+
     Some(format!(
         "https://un.defined.fi/{network}/{}",
         signal.token.address()
     ))
 }
+
 pub(super) fn chain_name(signal: &signal_api::Signal) -> String {
     match signal.token.chain() {
         ChainId::Solana { .. } => "Solana".into(),

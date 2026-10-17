@@ -16,12 +16,15 @@ pub struct CodexConfig {
     #[serde(default = "default_interval")]
     pub min_interval_ms: u64,
 }
+
 fn default_concurrency() -> usize {
     2
 }
+
 fn default_interval() -> u64 {
     500
 }
+
 impl CodexConfig {
     pub fn validate(&self) -> Result<(), ProviderError> {
         if let Some(usage) = &self.usage {
@@ -29,6 +32,7 @@ impl CodexConfig {
                 .validate()
                 .map_err(|_| ProviderError::InvalidRequest)?;
         }
+
         if self.fallback_api_keys.len() > 8
             || self.network_id <= 0
             || self.concurrency == 0
@@ -38,6 +42,7 @@ impl CodexConfig {
         {
             return Err(ProviderError::InvalidRequest);
         }
+
         Ok(())
     }
 }

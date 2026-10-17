@@ -4,6 +4,7 @@ pub struct ProbeFailure {
     pub pool: PoolId,
     pub error: String,
 }
+
 #[derive(Debug, Serialize)]
 pub struct AnalyzerReport {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16,6 +17,7 @@ pub struct AnalyzerReport {
     pub error: Option<String>,
     pub probes: Vec<ProbeFailure>,
 }
+
 #[derive(Debug, Serialize)]
 pub struct AnalysisReport {
     pub schema_version: u16,
@@ -26,6 +28,7 @@ pub struct AnalysisReport {
     pub excluded: Vec<Exclusion>,
     pub analyzers: Vec<AnalyzerReport>,
 }
+
 pub struct AnalyzeRequest {
     pub token: TokenId,
     pub pool: Option<PoolId>,
@@ -34,6 +37,7 @@ pub struct AnalyzeRequest {
     pub policy: SelectionPolicy,
     pub close_grace_ms: u64,
 }
+
 impl Services {
     /// Manual analysis has no notification or trading side effects.
     pub async fn analyze(
@@ -48,6 +52,7 @@ impl Services {
         {
             return Err(ProviderError::InvalidRequest);
         }
+
         let selected: Vec<_> = if request.analyzer_instances.is_empty() {
             analyzers.values().map(Box::as_ref).collect()
         } else {
@@ -62,17 +67,21 @@ impl Services {
                 })
                 .collect::<Result<_, _>>()?
         };
+
         if selected.is_empty() {
             return Err(ProviderError::InvalidRequest);
         }
+
         let pools = if let Some(pool) = &request.pool {
             if pool.chain() != request.token.chain() {
                 return Err(ProviderError::InvalidRequest);
             }
+
             let value = read_bounded(self.provider.pool(pool, ctx), ctx).await?;
             if &value.pool != pool {
                 return Err(ProviderError::InvalidData("explicit pool mismatch".into()));
             }
+
             PoolDiscoveryResult {
                 pools: vec![value],
                 coverage: Coverage {
@@ -84,6 +93,7 @@ impl Services {
         } else {
             self.list_pools(&request.token, ctx).await?
         };
+
         ctx.check()?;
         let as_of = self.evaluation_time()?;
         let cutoff = as_of.closed_cutoff(request.resolution, request.close_grace_ms)?;
@@ -97,6 +107,7 @@ impl Services {
                     "analyzer dependency planner".into(),
                 ));
             }
+
             let n = requirement.candles.desired_bars;
             if n == 0
                 || n > 1500
@@ -106,6 +117,7 @@ impl Services {
             {
                 return Err(ProviderError::InvalidRequest);
             }
+
             let from = TimestampMs::new(
                 cutoff
                     .get()
@@ -122,6 +134,7 @@ impl Services {
                 error: None,
                 probes: vec![],
             };
+
             for pool in plan.ranked.iter().take(request.policy.max_probes) {
                 let candles = CandleRequest {
                     pool: pool.pool.clone(),
@@ -133,6 +146,7 @@ impl Services {
                     min_bars: requirement.candles.min_bars,
                     max_bars: n,
                 };
+
                 match self.hub.candles(&candles, ctx).await {
                     Ok(series) => {
                         let artifacts = ArtifactStore::default();
@@ -148,12 +162,14 @@ impl Services {
                                 report.result = Some(value);
                                 break;
                             }
+
                             Err(error) => report.probes.push(ProbeFailure {
                                 pool: pool.pool.clone(),
                                 error: format!("analysis: {error}"),
                             }),
                         }
                     }
+
                     Err(
                         e @ (ProviderError::Cancelled
                         | ProviderError::Timeout
@@ -166,6 +182,7 @@ impl Services {
                     }),
                 }
             }
+
             if report.result.is_none() {
                 report.error = Some(
                     if plan.ranked.is_empty() {
@@ -176,8 +193,10 @@ impl Services {
                     .into(),
                 );
             }
+
             reports.push(report);
         }
+
         Ok(AnalysisReport {
             schema_version: 1,
             token: request.token.clone(),

@@ -13,6 +13,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
 use tokio::sync::{Mutex, watch};
 type Outcome = Result<Arc<CandleSeries>, ProviderError>;
 struct Entry {
@@ -20,18 +21,21 @@ struct Entry {
     rx: watch::Receiver<Option<Outcome>>,
     created: Instant,
 }
+
 #[derive(Default)]
 struct Counters {
     hit: AtomicU64,
     join: AtomicU64,
     upstream: AtomicU64,
 }
+
 #[derive(Debug, serde::Serialize)]
 pub struct CacheStats {
     pub cache_hits: u64,
     pub singleflight_joins: u64,
     pub upstream_attempts: u64,
 }
+
 /// One hub owns one configured provider; cached data never crosses providers.
 pub struct DataHub {
     provider: Arc<dyn CandleProvider>,
@@ -41,6 +45,7 @@ pub struct DataHub {
     upstream_timeout: Duration,
     counts: Counters,
 }
+
 impl DataHub {
     pub fn new(
         provider: Arc<dyn CandleProvider>,
@@ -57,6 +62,7 @@ impl DataHub {
         {
             return Err(ProviderError::InvalidRequest);
         }
+
         Ok(Self {
             provider,
             entries: Mutex::new(BTreeMap::new()),
@@ -66,6 +72,7 @@ impl DataHub {
             counts: Counters::default(),
         })
     }
+
     pub fn stats(&self) -> CacheStats {
         CacheStats {
             cache_hits: self.counts.hit.load(Ordering::Relaxed),
@@ -73,6 +80,7 @@ impl DataHub {
             upstream_attempts: self.counts.upstream.load(Ordering::Relaxed),
         }
     }
+
     pub async fn candles(&self, request: &CandleRequest, ctx: &RequestContext) -> Outcome {
         request.validate()?;
         ctx.check()?;
@@ -86,12 +94,14 @@ impl DataHub {
                     Some(Ok(series)) if incremental::can_extend(series, request) => {
                         Some(series.clone())
                     }
+
                     _ => None,
                 })
                 .max_by_key(|series| series.end_exclusive)
         } else {
             None
         };
+
         entries.retain(|_, e| match &*e.rx.borrow() {
             None => e.rx.has_changed().is_ok(),
             Some(Ok(_)) => e.created.elapsed() < self.ttl,
@@ -101,11 +111,13 @@ impl DataHub {
             if ctx.priority.is_active() {
                 entry.priority.promote_active();
             }
+
             if entry.rx.borrow().is_some() {
                 self.counts.hit.fetch_add(1, Ordering::Relaxed);
             } else {
                 self.counts.join.fetch_add(1, Ordering::Relaxed);
             }
+
             entry.rx.clone()
         } else {
             let shadow_limit = (self.capacity * 3 / 4).max(1);
@@ -120,6 +132,7 @@ impl DataHub {
                     retry_after_ms: 100,
                 });
             }
+
             if entries.len() >= self.capacity {
                 let victim = entries
                     .iter()
@@ -134,6 +147,7 @@ impl DataHub {
                     });
                 }
             }
+
             let (tx, rx) = watch::channel(None);
             let priority = ctx.priority.independent();
             entries.insert(
@@ -154,6 +168,7 @@ impl DataHub {
                     deadline: Instant::now() + timeout,
                     cancellation: Cancellation::default(),
                 };
+
                 let work = async {
                     let upstream = prefix.as_ref().map_or_else(
                         || Ok(request.clone()),
@@ -167,14 +182,18 @@ impl DataHub {
                                 Some(prefix) => {
                                     incremental::merge(prefix, series, &upstream, &request)?
                                 }
+
                                 None => series,
                             };
+
                             validate_response(series, &request).map(Arc::new)
                         }
+
                         Ok(Err(e)) => Err(e),
                         Err(_) => Err(ProviderError::Timeout),
                     }
                 };
+
                 let result = AssertUnwindSafe(work)
                     .catch_unwind()
                     .await
@@ -183,20 +202,26 @@ impl DataHub {
             });
             rx
         };
+
         drop(entries);
         loop {
             ctx.check()?;
             if let Some(result) = rx.borrow().clone() {
                 return result;
             }
+
             tokio::select! {
-                changed = rx.changed() => { if changed.is_err() { return
-                Err(ProviderError::Transport); } }, _ =
-                tokio::time::sleep(Duration::from_millis(10)) => {}
+                changed = rx.changed() => {
+                    if changed.is_err() {
+                        return Err(ProviderError::Transport);
+                    }
+                },
+                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
             }
         }
     }
 }
+
 fn validate_response(
     mut series: CandleSeries,
     r: &CandleRequest,
@@ -214,10 +239,12 @@ fn validate_response(
             "response does not match candle request".into(),
         ));
     }
+
     series.provenance.input_hash = ContentHash::of(&(r, &series.candles))
         .map_err(|_| ProviderError::InvalidData("input hash".into()))?;
     Ok(series)
 }
+
 #[async_trait::async_trait]
 impl CandleObservationReader for DataHub {
     async fn candle_observations(
@@ -228,6 +255,7 @@ impl CandleObservationReader for DataHub {
         if !(1..=16).contains(&limit) {
             return Err(ProviderError::InvalidRequest);
         }
+
         let entries = self.entries.lock().await;
         let mut series: Vec<_> = entries
             .values()
@@ -235,6 +263,7 @@ impl CandleObservationReader for DataHub {
                 if entry.created.elapsed() >= self.ttl {
                     return None;
                 }
+
                 match &*entry.rx.borrow() {
                     Some(Ok(series)) if &series.priced_token == token => Some(series.clone()),
                     _ => None,
@@ -263,3 +292,6 @@ impl CandleObservationReader for DataHub {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

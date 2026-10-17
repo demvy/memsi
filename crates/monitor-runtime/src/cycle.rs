@@ -4,6 +4,7 @@ impl Monitor<'_> {
     pub async fn cycle(&mut self, cancellation: &Cancellation) -> Result<CycleReport, StateError> {
         self.cycle_with_delivery(cancellation, true).await
     }
+
     pub(super) async fn cycle_with_delivery(
         &mut self,
         cancellation: &Cancellation,
@@ -14,6 +15,7 @@ impl Monitor<'_> {
         guard.finish(&result, self.dependencies.clock.now().ok());
         result
     }
+
     pub(super) async fn cycle_inner(
         &mut self,
         cancellation: &Cancellation,
@@ -40,13 +42,16 @@ impl Monitor<'_> {
             event_dropped: 0,
             state: self.dependencies.state.stats().await?,
         };
+
         if cancellation.is_cancelled() {
             return Ok(report);
         }
+
         self.restore(now).await?;
         if now >= self.next_discovery && self.source_panics < PANIC_LIMIT {
             self.discover(now, cancellation, &mut report).await?;
         }
+
         let retention_ms = watch_retention_ms(&self.dependencies.config.monitor);
         report.dropped += expire_watch(&mut self.watch, now, retention_ms);
         self.candidate_panics
@@ -58,6 +63,7 @@ impl Monitor<'_> {
             self.panic_stats(&mut report);
             return Ok(report);
         }
+
         let candidates = self.due_candidates(now);
         let config = self.dependencies.config;
         let services = self.dependencies.services;
@@ -76,6 +82,7 @@ impl Monitor<'_> {
                     Ok(metrics) => metrics.get(&candidate.token).cloned().unwrap_or_default(),
                     Err(error) => return Ok(Err(error.clone())),
                 };
+
                 tokio::time::timeout(
                     timeout,
                     services.evaluate_with_metrics(
@@ -89,6 +96,7 @@ impl Monitor<'_> {
                 )
                 .await
             };
+
             let result = AssertUnwindSafe(work)
                 .catch_unwind()
                 .await
@@ -100,6 +108,7 @@ impl Monitor<'_> {
             self.process_result(candidate, result, cancellation, &mut report)
                 .await?;
         }
+
         if deliver && self.dependencies.config.mode == AppMode::Signal {
             for _ in 0..16 {
                 if !signal_service::delivery::deliver_one_with_events(
@@ -116,6 +125,7 @@ impl Monitor<'_> {
                 }
             }
         }
+
         self.checkpoint().await?;
         report.watched = self.watch.len();
         report.state = self.dependencies.state.stats().await?;

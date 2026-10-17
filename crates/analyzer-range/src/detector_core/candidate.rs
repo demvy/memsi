@@ -6,6 +6,7 @@ use crate::detector_core::{
     },
     quantile::{self, Band},
 };
+
 #[derive(Clone, Debug)]
 pub(crate) struct CandidateRange {
     pub window: usize,
@@ -31,6 +32,7 @@ pub(crate) struct CandidateRange {
     pub quality: f64,
     pub hard_rejected: bool,
 }
+
 pub(crate) fn evaluate_candidate(
     values: &[f64],
     config: &RangeDetectorConfig,
@@ -127,6 +129,7 @@ pub(crate) fn evaluate_candidate(
         hard_rejected: !valid_band || !finite || outside_streak > config.max_outside_streak,
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,6 +139,7 @@ mod tests {
             .map(|index| pattern[index % pattern.len()].ln())
             .collect()
     }
+
     #[test]
     fn evaluates_range_more_highly_than_trend() {
         let config = RangeDetectorConfig::default();
@@ -149,6 +153,7 @@ mod tests {
         assert!(range.quality > trend.quality);
         assert!(trend.quality < config.candidate_threshold);
     }
+
     #[test]
     fn sustained_outside_closes_are_hard_rejected() {
         let config = RangeDetectorConfig::default();

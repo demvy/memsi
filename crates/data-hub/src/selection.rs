@@ -7,6 +7,7 @@ pub enum Purpose {
     Research,
     ConcentratedLp,
 }
+
 #[derive(Clone, Debug)]
 pub struct SelectionPolicy {
     pub purpose: Purpose,
@@ -16,6 +17,7 @@ pub struct SelectionPolicy {
     pub quote_tokens: Vec<TokenId>,
     pub max_probes: usize,
 }
+
 impl Default for SelectionPolicy {
     fn default() -> Self {
         Self {
@@ -28,16 +30,19 @@ impl Default for SelectionPolicy {
         }
     }
 }
+
 #[derive(Debug, Serialize)]
 pub struct Exclusion {
     pub pool: PoolId,
     pub reason: String,
 }
+
 #[derive(Debug, Serialize)]
 pub struct SelectionPlan {
     pub ranked: Vec<PoolSnapshot>,
     pub excluded: Vec<Exclusion>,
 }
+
 pub fn rank(
     token: &TokenId,
     pools: Vec<PoolSnapshot>,
@@ -50,6 +55,7 @@ pub fn rank(
     {
         return Err(ProviderError::InvalidRequest);
     }
+
     let mut ranked = vec![];
     let mut excluded = vec![];
     let mut seen = BTreeSet::new();
@@ -58,11 +64,13 @@ pub fn rank(
         if !seen.insert(p.pool.clone()) {
             return Err(ProviderError::InvalidData("duplicate pool identity".into()));
         }
+
         let quote = if p.token0 == *token {
             &p.token1
         } else {
             &p.token0
         };
+
         let reason = if !p.contains(token) {
             Some("token_not_in_pool")
         } else if policy.purpose == Purpose::ConcentratedLp && !p.concentrated_at(as_of) {
@@ -85,6 +93,7 @@ pub fn rank(
         } else {
             None
         };
+
         if let Some(reason) = reason {
             excluded.push(Exclusion {
                 pool: p.pool,
@@ -94,29 +103,34 @@ pub fn rank(
             ranked.push(p);
         }
     }
+
     let quote_rank = |p: &PoolSnapshot| {
         let quote = if p.token0 == *token {
             &p.token1
         } else {
             &p.token0
         };
+
         policy
             .quote_tokens
             .iter()
             .position(|q| q == quote)
             .unwrap_or(usize::MAX)
     };
+
     let metric = |v: &Knowledge<Observation<NonNegative>>| {
         v.as_ref()
             .filter(|v| v.is_fresh(as_of, policy.max_metadata_age_ms, false))
             .map(|v| v.value.get())
     };
+
     let descending = |a: Option<f64>, b: Option<f64>| match (a, b) {
         (Some(a), Some(b)) => b.total_cmp(&a),
         (Some(_), None) => std::cmp::Ordering::Less,
         (None, Some(_)) => std::cmp::Ordering::Greater,
         _ => std::cmp::Ordering::Equal,
     };
+
     ranked.sort_by(|a, b| {
         quote_rank(a)
             .cmp(&quote_rank(b))

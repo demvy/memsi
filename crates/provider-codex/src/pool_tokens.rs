@@ -15,17 +15,21 @@ impl PoolTokens {
                     "pool token identity changed".into(),
                 ));
             }
+
             return Ok(());
         }
+
         if entries.len() >= 512 {
             entries.pop_first();
         }
+
         entries.insert(
             pool.pool.clone(),
             (pool.token0.clone(), pool.token1.clone()),
         );
         Ok(())
     }
+
     pub(crate) fn side(
         &self,
         pool: &PoolId,
@@ -35,6 +39,7 @@ impl PoolTokens {
         let Some((token0, token1)) = entries.get(pool) else {
             return Ok(None);
         };
+
         if token == token0 {
             Ok(Some("token0"))
         } else if token == token1 {

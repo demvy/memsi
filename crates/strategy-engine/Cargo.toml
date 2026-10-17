@@ -16,3 +16,11 @@
 "thiserror" = "2"
 "futures" = "0.3"
 "tokio" = { "version" = "1", "features" = ["time"] }
+
+[dev-dependencies]
+strategy-range = { path = "../strategy-range" }
+analyzer-range = { path = "../analyzer-range" }
+analyzer-volume = { path = "../analyzer-volume" }
+async-trait = "0.1"
+plugin-api = { path = "../plugin-api" }
+tokio = { version = "1", features = ["rt", "macros"] }

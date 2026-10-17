@@ -20,3 +20,12 @@
 "futures" = "0.3"
 "serde" = { "version" = "1", "features" = ["derive"] }
 "tokio" = { "version" = "1", "features" = ["time", "rt", "sync"] }
+
+[dev-dependencies]
+async-trait = "0.1"
+plugin-api = { path = "../plugin-api" }
+state-memory = { path = "../state-memory" }
+strategy-range = { path = "../strategy-range" }
+analyzer-range = { path = "../analyzer-range" }
+analyzer-volume = { path = "../analyzer-volume" }
+tokio = { version = "1", features = ["rt", "macros"] }

@@ -18,6 +18,7 @@ pub struct MonitorArgs {
     #[arg(long)]
     pub once: bool,
 }
+
 pub async fn run(
     args: MonitorArgs,
     network: Option<app_config::Network>,
@@ -33,16 +34,20 @@ pub async fn run(
             value.into(),
         );
     }
+
     let mut config = app_config::AppConfig::load(&args.config, &environment, &overrides)?;
     if let Some(network) = network {
         config.select_network(network)?;
     }
+
     eprintln!(
         "{}",
-        serde_json::json!({ "event" : "monitor_config_loaded",
-        "discovery_interval_secs" : config.monitor.poll_interval_secs,
-        "request_deadline_secs" : config.monitor.candidate_deadline_secs, "chain" :
-        config.chain, })
+        serde_json::json!({
+            "event": "monitor_config_loaded",
+            "discovery_interval_secs": config.monitor.poll_interval_secs,
+            "request_deadline_secs": config.monitor.candidate_deadline_secs,
+            "chain": config.chain,
+        })
     );
     let mut app = app_bootstrap::build(&config)?;
     #[allow(unused_mut)]
@@ -68,6 +73,7 @@ pub async fn run(
         targets: &app.delivery_targets,
         clock: &clock,
     };
+
     let mut monitor = monitor_runtime::Monitor::new(dependencies)?
         .with_events(app.events.clone())
         .with_diagnostics(std::sync::Arc::new(crate::discovery_logging::Console::new(
@@ -102,17 +108,31 @@ pub async fn run(
         let work = market_work;
         tokio::pin!(work);
         tokio::select! {
-            biased; interrupted = shutdown_signal() => { interrupted ?; cancellation
-            .cancel();
-            eprintln!("shutdown requested: settling in-flight work (up to 15 seconds)");
-            tokio::select! { result = tokio::time::timeout(Duration::from_secs(15), & mut
-            work) => { match result { Ok(result) => result ?, Err(_) => return
-            Err("shutdown deadline exceeded; in-flight delivery outcomes may be unknown"
-            .into()), } } interrupted = shutdown_signal() => { interrupted ?; return
-            Err("forced shutdown; in-flight delivery outcome may be unknown".into()); } }
-            } result = & mut work => result ?,
+            biased;
+            interrupted = shutdown_signal() => {
+                interrupted?;
+                cancellation.cancel();
+
+                eprintln!("shutdown requested: settling in-flight work (up to 15 seconds)");
+                tokio::select! {
+                    result = tokio::time::timeout(Duration::from_secs(15), &mut work) => {
+                        match result {
+                            Ok(result) => result?,
+                            Err(_) => return Err(
+                                "shutdown deadline exceeded; in-flight delivery outcomes may be unknown".into()
+                            ),
+                        }
+                    }
+                    interrupted = shutdown_signal() => {
+                        interrupted?;
+                        return Err("forced shutdown; in-flight delivery outcome may be unknown".into());
+                    }
+                }
+            }
+            result = &mut work => result?,
         }
     }
+
     let stats = state.stats().await?;
     if stats.durability == "volatile" && stats.pending > 0 {
         eprintln!(
@@ -120,18 +140,23 @@ pub async fn run(
             stats.pending
         );
     }
+
     if let Some((instance, reader)) = &provider_observer
         && let Some(transport) = reader.transport_observations()
     {
         eprintln!(
             "transport {}",
-            serde_json::to_string(&serde_json::json!({ "provider" :
-            instance, "observations" : transport }))?
+            serde_json::to_string(&serde_json::json!({
+                "provider": instance,
+                "observations": transport
+            }))?
         );
     }
+
     eprintln!("shutdown {}", serde_json::to_string(&stats)?);
     Ok(())
 }
+
 async fn market(
     monitor: &mut monitor_runtime::Monitor<'_>,
     cancellation: &Cancellation,
@@ -158,5 +183,6 @@ async fn market(
             })
             .await?;
     }
+
     Ok(())
 }

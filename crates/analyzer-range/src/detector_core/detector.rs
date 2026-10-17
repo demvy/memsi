@@ -4,14 +4,17 @@ use crate::detector_core::{
     candidate::{CandidateRange, evaluate_candidate},
     metrics::EPSILON,
 };
+
 pub trait DetectRange {
     fn detect_closes(&self, closes: &[f64]) -> Result<RangeDetection, RangeError>;
 }
+
 /// Immutable, shareable detector configured for a particular bar cadence.
 #[derive(Clone, Debug)]
 pub struct RangeDetector {
     config: RangeDetectorConfig,
 }
+
 impl RangeDetector {
     pub fn new(mut config: RangeDetectorConfig) -> Result<Self, RangeError> {
         config.validate()?;
@@ -19,9 +22,11 @@ impl RangeDetector {
         config.windows.dedup();
         Ok(Self { config })
     }
+
     pub fn detect_closes(&self, closes: &[f64]) -> Result<RangeDetection, RangeError> {
         self.detect_closes_with_scratch(closes, &mut RangeDetectorScratch::default())
     }
+
     pub fn detect_closes_with_scratch(
         &self,
         closes: &[f64],
@@ -31,6 +36,7 @@ impl RangeDetector {
         if closes.len() < self.config.min_bars {
             return Ok(empty_detection(RangeState::InsufficientData, 0.0));
         }
+
         let max_window = *self.config.windows.last().expect("validated windows");
         let retained = &closes[closes.len().saturating_sub(max_window)..];
         preprocess_closes(retained, &mut scratch.log_prices);
@@ -39,6 +45,7 @@ impl RangeDetector {
             if window > scratch.log_prices.len() {
                 continue;
             }
+
             let start = scratch.log_prices.len() - window;
             let candidate = evaluate_candidate(
                 &scratch.log_prices[start..],
@@ -49,6 +56,7 @@ impl RangeDetector {
                 candidates.push(candidate);
             }
         }
+
         let Some(max_quality) = candidates
             .iter()
             .map(|candidate| candidate.quality)
@@ -56,6 +64,7 @@ impl RangeDetector {
         else {
             return Ok(empty_detection(RangeState::NoRange, 0.0));
         };
+
         let near_best_floor = max_quality - self.config.near_best_tolerance;
         if let Some(selected) = longest_qualifying(
             &candidates,
@@ -64,6 +73,7 @@ impl RangeDetector {
         ) {
             return Ok(public_detection(selected, RangeState::RangeConfirmed));
         }
+
         if let Some(selected) = longest_qualifying(
             &candidates,
             self.config.candidate_threshold,
@@ -71,37 +81,46 @@ impl RangeDetector {
         ) {
             return Ok(public_detection(selected, RangeState::RangeCandidate));
         }
+
         Ok(empty_detection(RangeState::NoRange, max_quality))
     }
+
     pub fn detect_candles(&self, candles: &[Candle]) -> Result<RangeDetection, RangeError> {
         let closes: Vec<_> = candles.iter().map(|candle| candle.close).collect();
         self.detect_closes(&closes)
     }
 }
+
 impl DetectRange for RangeDetector {
     fn detect_closes(&self, closes: &[f64]) -> Result<RangeDetection, RangeError> {
         RangeDetector::detect_closes(self, closes)
     }
 }
+
 fn validate_closes(closes: &[f64]) -> Result<(), RangeError> {
     if closes.is_empty() {
         return Err(RangeError::EmptyInput);
     }
+
     for (index, &value) in closes.iter().enumerate() {
         if !value.is_finite() {
             return Err(RangeError::NonFinitePrice { index, value });
         }
+
         if value <= 0.0 {
             return Err(RangeError::NonPositivePrice { index, value });
         }
     }
+
     Ok(())
 }
+
 fn preprocess_closes(closes: &[f64], output: &mut Vec<f64>) {
     output.clear();
     output.reserve(closes.len());
     output.extend(closes.iter().map(|price| price.ln()));
 }
+
 fn longest_qualifying(
     candidates: &[CandidateRange],
     threshold: f64,
@@ -112,6 +131,7 @@ fn longest_qualifying(
         .filter(|candidate| candidate.quality >= threshold && candidate.quality >= near_best_floor)
         .max_by_key(|candidate| candidate.window)
 }
+
 fn public_detection(candidate: &CandidateRange, state: RangeState) -> RangeDetection {
     let latest_position =
         (candidate.latest_log - candidate.lower_log) / candidate.width_log.max(EPSILON);
@@ -148,6 +168,7 @@ fn public_detection(candidate: &CandidateRange, state: RangeState) -> RangeDetec
         },
     }
 }
+
 fn empty_detection(state: RangeState, confidence: f64) -> RangeDetection {
     RangeDetection {
         state,
@@ -156,6 +177,7 @@ fn empty_detection(state: RangeState, confidence: f64) -> RangeDetection {
         diagnostics: RangeDiagnostics::default(),
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,15 +201,18 @@ mod tests {
             RangeState::InsufficientData
         );
     }
+
     #[test]
     fn windows_are_sorted_and_deduplicated() {
         let config = RangeDetectorConfig {
             windows: vec![54, 24, 54],
             ..RangeDetectorConfig::default()
         };
+
         let detector = RangeDetector::new(config).unwrap();
         assert_eq!(detector.config.windows, [24, 54]);
     }
+
     #[test]
     fn preprocessing_converts_prices_to_natural_logs() {
         let mut output = vec![99.0];

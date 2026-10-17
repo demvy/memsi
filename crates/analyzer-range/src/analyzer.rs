@@ -9,6 +9,7 @@ pub struct RangeAnalyzer {
     window: usize,
     desired_bars: usize,
 }
+
 impl RangeAnalyzer {
     pub fn new(instance: InstanceId, mut config: RangeConfig) -> Result<Self, AnalysisError> {
         if config.windows.is_empty()
@@ -18,6 +19,7 @@ impl RangeAnalyzer {
         {
             return Err(AnalysisError::InvalidInput("range resource bounds".into()));
         }
+
         config.windows.sort_unstable();
         config.windows.dedup();
         let window = *config.windows.last().unwrap();
@@ -26,10 +28,12 @@ impl RangeAnalyzer {
                 "unusable range window/quantiles".into(),
             ));
         }
+
         let desired_bars = config.history_bars.unwrap_or(window.max(300));
         if desired_bars < window || desired_bars > 10000 {
             return Err(AnalysisError::InvalidInput("range history bounds".into()));
         }
+
         let detector = crate::detector_core::RangeDetector::new(config.clone().into())
             .map_err(|e| AnalysisError::InvalidInput(e.to_string()))?;
         let config_digest = ContentHash::of(&config).map_err(|_| AnalysisError::NumericFailure)?;
@@ -41,6 +45,7 @@ impl RangeAnalyzer {
             desired_bars,
         })
     }
+
     pub fn descriptor_static() -> plugin_api::PluginDescriptor {
         plugin_api::PluginDescriptor {
             id: PluginId::new("analyzer.range").unwrap(),
@@ -53,16 +58,20 @@ impl RangeAnalyzer {
         }
     }
 }
+
 impl Analyzer for RangeAnalyzer {
     fn descriptor(&self) -> plugin_api::PluginDescriptor {
         Self::descriptor_static()
     }
+
     fn instance(&self) -> &InstanceId {
         &self.instance
     }
+
     fn config_digest(&self) -> &ContentHash {
         &self.config_digest
     }
+
     fn requirements(&self, resolution: Resolution, price_unit: PriceUnit) -> AnalysisRequirements {
         AnalysisRequirements {
             candles: CandleRequirement {
@@ -75,10 +84,12 @@ impl Analyzer for RangeAnalyzer {
             dependencies: vec![],
         }
     }
+
     fn analyze(&self, ctx: &AnalysisContext<'_>) -> Result<AnalysisValue, AnalysisError> {
         if ctx.candles.end_exclusive > ctx.as_of {
             return Err(AnalysisError::InvalidInput("future candle cutoff".into()));
         }
+
         ctx.candles
             .validate(self.window)
             .map_err(|e| AnalysisError::InvalidInput(e.to_string()))?;
@@ -97,6 +108,7 @@ impl Analyzer for RangeAnalyzer {
             crate::detector_core::RangeState::RangeCandidate => RangeState::Candidate,
             crate::detector_core::RangeState::RangeConfirmed => RangeState::Confirmed,
         };
+
         let range = result
             .range
             .map(|r| -> Result<RangeBounds, AnalysisError> {

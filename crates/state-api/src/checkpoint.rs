@@ -6,6 +6,7 @@ pub struct WatchRecord {
     pub last_seen: TimestampMs,
     pub order: u64,
 }
+
 /// One monitor owns a state store. Scope changes invalidate scheduling, not signal history.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MonitorCheckpoint {
@@ -17,6 +18,7 @@ pub struct MonitorCheckpoint {
     pub sequence: u64,
     pub watch: Vec<WatchRecord>,
 }
+
 impl MonitorCheckpoint {
     pub fn validate(&self) -> Result<(), StateError> {
         let mut tokens = std::collections::BTreeSet::new();
@@ -48,9 +50,11 @@ impl MonitorCheckpoint {
         {
             return Err(StateError::InvalidRequest);
         }
+
         Ok(())
     }
 }
+
 #[async_trait]
 pub trait MonitorRepository: Send + Sync {
     async fn load_checkpoint(

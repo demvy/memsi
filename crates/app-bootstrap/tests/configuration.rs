@@ -10,7 +10,12 @@ use std::{collections::BTreeMap, path::Path};
 #[test]
 fn shipped_monitor_configuration_builds_without_opening_services() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../memes-finder.toml");
-    let config = app_config::AppConfig::load(&path, &BTreeMap::new(), &BTreeMap::new()).unwrap();
+    let config = app_config::AppConfig::load(
+        &path,
+        &BTreeMap::new(),
+        &BTreeMap::from([("MEME__TELEGRAM".into(), "false".into())]),
+    )
+    .unwrap();
     let app = app_bootstrap::build(&config).unwrap();
     assert_eq!(app.strategies.len(), 1);
     assert_eq!(app.providers.len(), 1);
@@ -37,6 +42,7 @@ fn removed_service_configuration_is_rejected_instead_of_ignored() {
         } else {
             "'legacy'"
         };
+
         assert!(
             app_config::AppConfig::parse(&format!("{field}={value}\n{preset}")).is_err(),
             "{field}"
@@ -49,7 +55,12 @@ fn shipped_pump_profile_screens_small_caps_and_volume_ratio() {
     use domain::*;
     use strategy_api::MetricScreen;
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../memes-finder.toml");
-    let config = app_config::AppConfig::load(&path, &BTreeMap::new(), &BTreeMap::new()).unwrap();
+    let config = app_config::AppConfig::load(
+        &path,
+        &BTreeMap::new(),
+        &BTreeMap::from([("MEME__TELEGRAM".into(), "false".into())]),
+    )
+    .unwrap();
     let app = app_bootstrap::build(&config).unwrap();
     let strategy = &app.strategies[&InstanceId::new("pump-high").unwrap()];
     let now = TimestampMs::new(1_260_000).unwrap();
@@ -66,12 +77,14 @@ fn shipped_pump_profile_screens_small_caps_and_volume_ratio() {
         source: ProviderId::new("test").unwrap(),
         liquidity_usd: Knowledge::unknown(),
     };
+
     let observation = |value| Observation {
         value: NonNegative::new(value).unwrap(),
         source: ProviderId::new("test").unwrap(),
         observed_at: Some(now),
         fetched_at: now,
     };
+
     candidate
         .metrics
         .insert(TokenMetric::MarketCapUsd, observation(500_000.0));
@@ -80,14 +93,14 @@ fn shipped_pump_profile_screens_small_caps_and_volume_ratio() {
         .insert(TokenMetric::TotalLiquidityUsd, observation(40_000.0));
     candidate
         .metrics
-        .insert(TokenMetric::Volume5mToLiquidity, observation(0.46));
+        .insert(TokenMetric::Volume5mToLiquidity, observation(0.11));
     assert!(matches!(
         strategy.screen_token_metrics(&candidate, now),
         MetricScreen::Continue
     ));
     candidate
         .metrics
-        .insert(TokenMetric::Volume5mToLiquidity, observation(0.44));
+        .insert(TokenMetric::Volume5mToLiquidity, observation(0.09));
     assert!(matches!(
         strategy.screen_token_metrics(&candidate, now),
         MetricScreen::Reject(_)

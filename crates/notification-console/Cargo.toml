@@ -13,3 +13,7 @@
 "notification-render" = { "path" = "../notification-render" }
 "async-trait" = "0.1"
 "serde" = { "version" = "1", "features" = ["derive"] }
+
+[dev-dependencies]
+signal-api = { path = "../signal-api" }
+tokio = { version = "1", features = ["rt", "macros"] }

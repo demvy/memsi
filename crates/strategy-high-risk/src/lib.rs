@@ -14,3 +14,6 @@ pub fn build(
 ) -> Result<RangeStrategy, StrategyError> {
     RangeStrategy::new(instance, mode, strategy_range::Profile::High, config)
 }
+
+#[cfg(test)]
+mod tests;

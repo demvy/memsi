@@ -17,3 +17,6 @@
 "async-trait" = "0.1"
 "reqwest" = { "version" = "0.13", "default-features" = false, "features" = ["json", "rustls"] }
 "tokio" = { "version" = "1", "features" = ["sync", "time", "rt", "macros"] }
+
+[dev-dependencies]
+signal-api = { path = "../signal-api" }

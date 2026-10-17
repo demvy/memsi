@@ -15,6 +15,7 @@ fn token_age(signal: &signal_api::Signal) -> String {
             SignalFact::Text { label, value } if label == "Token age seconds (provider)" => {
                 value.parse::<f64>().ok()
             }
+
             _ => None,
         })
         .filter(|v| v.is_finite() && *v >= 0.);
@@ -23,6 +24,7 @@ fn token_age(signal: &signal_api::Signal) -> String {
         human_age,
     )
 }
+
 fn human_age(seconds: f64) -> String {
     for (unit, span) in [
         ("year", 31_536_000.),
@@ -36,8 +38,10 @@ fn human_age(seconds: f64) -> String {
             return format!("{n} {unit}{} ago", if n == 1 { "" } else { "s" });
         }
     }
+
     "less than a minute ago".into()
 }
+
 pub fn telegram_html(notification: &Notification) -> String {
     let signal = &notification.signal;
     let ca = html(&clean(signal.token.address(), 128));
@@ -56,6 +60,7 @@ pub fn telegram_html(notification: &Notification) -> String {
         html(&token_age(signal))
     )
 }
+
 pub fn summary_text(notification: &Notification) -> String {
     let signal = &notification.signal;
     format!(
@@ -69,6 +74,7 @@ pub fn summary_text(notification: &Notification) -> String {
         token_age(signal)
     )
 }
+
 fn signal_title(signal: &signal_api::Signal) -> &'static str {
     match signal.kind {
         SignalKind::LpCandidate => "LP_CANDIDATE",
@@ -76,6 +82,7 @@ fn signal_title(signal: &signal_api::Signal) -> &'static str {
         SignalKind::ResearchMatch => "RESEARCH_MATCH",
     }
 }
+
 fn html(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -90,11 +97,13 @@ pub fn plain_text(notification: &Notification) -> String {
         SignalKind::ResearchMatch => "Research match",
         SignalKind::LpCandidate => "LP candidate",
     };
+
     let symbol = clean(signal.symbol.as_deref().unwrap_or("unknown ticker"), 64);
     let chain = match signal.token.chain() {
         ChainId::Evm { chain_id } => format!("EVM {chain_id}"),
         ChainId::Solana { .. } => "Solana".into(),
     };
+
     let pool = signal
         .pool
         .as_address()
@@ -130,6 +139,7 @@ pub fn plain_text(notification: &Notification) -> String {
     for warning in &signal.warnings {
         append(&mut text, &format!("Warning: {}", clean(warning, 160)));
     }
+
     if !signal.reasons.is_empty() {
         append(&mut text, "Matched because:");
         for reason in signal.reasons.iter().take(12) {
@@ -139,6 +149,7 @@ pub fn plain_text(notification: &Notification) -> String {
             );
         }
     }
+
     for fact in &signal.facts {
         let line = match fact {
             SignalFact::Money {
@@ -158,15 +169,19 @@ pub fn plain_text(notification: &Notification) -> String {
                     PriceUnit::UsdPerToken => "USD/token".into(),
                     PriceUnit::QuotePerToken { quote } => format!("{} per token", quote.address()),
                 };
+
                 format!("Range: {}–{} {unit}", lower.get(), upper.get())
             }
+
             SignalFact::Confidence { value } => format!("Confidence: {:.1}%", value.get() * 100.),
             SignalFact::Text { label, value } => {
                 format!("{}: {}", clean(label, 64), clean(value, 256))
             }
         };
+
         append(&mut text, &line);
     }
+
     text
 }
 
@@ -176,6 +191,7 @@ fn append(text: &mut String, line: &str) {
         text.push('\n');
     }
 }
+
 fn clean(value: &str, limit: usize) -> String {
     value
         .chars()
@@ -186,3 +202,6 @@ fn clean(value: &str, limit: usize) -> String {
         .take(limit)
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

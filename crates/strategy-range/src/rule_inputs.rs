@@ -5,6 +5,7 @@ fn fresh_value(value: &Knowledge<Observation<NonNegative>>, now: TimestampMs) ->
         .filter(|observation| observation.is_fresh(now, 60_000, false))
         .map(|observation| observation.value.get())
 }
+
 pub(super) struct Inputs<'a> {
     pub(super) liquidity: f64,
     pub(super) volume_24h: f64,
@@ -12,6 +13,7 @@ pub(super) struct Inputs<'a> {
     pub(super) range: &'a RangeAnalysis,
     pub(super) volume: &'a VolumeAnalysis,
 }
+
 pub(super) fn required_inputs<'a>(
     context: &StrategyContext<'a>,
     config: &StrategyConfig,
@@ -39,6 +41,7 @@ pub(super) fn required_inputs<'a>(
             ));
         }
     }
+
     if config
         .trend
         .as_ref()
@@ -47,12 +50,15 @@ pub(super) fn required_inputs<'a>(
     {
         missing.push(reason("INPUT_MISSING", "trend", None, "trend analysis"));
     }
+
     if context.range.is_none() {
         missing.push(reason("INPUT_MISSING", "range", None, "range analysis"));
     }
+
     if context.volume.is_none() {
         missing.push(reason("INPUT_MISSING", "volume", None, "volume analysis"));
     }
+
     if !config.research_only
         && (pool.kind == PoolKind::Unknown
             || !pool.kind_verified
@@ -68,6 +74,7 @@ pub(super) fn required_inputs<'a>(
             "verified concentrated pool",
         ));
     }
+
     if let Some(volume) = context.volume
         && ((if config.research.is_some() {
             volume.robust.as_ref().and_then(|v| v.relative_volume)
@@ -84,6 +91,7 @@ pub(super) fn required_inputs<'a>(
             "known USD volume ratio",
         ));
     }
+
     if let Some(range) = context.range {
         if range.price_unit != PriceUnit::UsdPerToken || range.state == RangeState::InsufficientData
         {
@@ -94,15 +102,18 @@ pub(super) fn required_inputs<'a>(
                 "closed USD history",
             ));
         }
+
         if matches!(range.state, RangeState::Candidate | RangeState::Confirmed)
             && range.range.is_none()
         {
             missing.push(reason("RANGE_UNAVAILABLE", "range.bounds", None, "bounds"));
         }
     }
+
     if !missing.is_empty() {
         return Err(missing);
     }
+
     Ok(Inputs {
         liquidity: liquidity.unwrap(),
         volume_24h: volume_24h.unwrap(),

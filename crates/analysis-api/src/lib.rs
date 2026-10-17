@@ -11,10 +11,12 @@ pub struct ArtifactSlot {
     pub invocation_digest: ContentHash,
     pub input_hash: ContentHash,
 }
+
 pub struct ArtifactKey<T> {
     pub slot: ArtifactSlot,
     _type: PhantomData<fn() -> T>,
 }
+
 impl<T> ArtifactKey<T> {
     pub fn new(slot: ArtifactSlot) -> Self {
         Self {
@@ -23,6 +25,7 @@ impl<T> ArtifactKey<T> {
         }
     }
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ArtifactError {
     #[error("missing artifact")]
@@ -34,10 +37,12 @@ pub enum ArtifactError {
     #[error("artifact provenance does not match slot")]
     ProvenanceMismatch,
 }
+
 #[derive(Default)]
 pub struct ArtifactStore {
     inner: BTreeMap<ArtifactSlot, Arc<dyn Any + Send + Sync>>,
 }
+
 impl ArtifactStore {
     pub fn insert<T: Send + Sync + 'static>(
         &mut self,
@@ -52,12 +57,15 @@ impl ArtifactStore {
         {
             return Err(ArtifactError::ProvenanceMismatch);
         }
+
         if self.inner.contains_key(&key.slot) {
             return Err(ArtifactError::Duplicate);
         }
+
         self.inner.insert(key.slot, Arc::new(value));
         Ok(())
     }
+
     pub fn get<T: Send + Sync + 'static>(
         &self,
         key: &ArtifactKey<T>,
@@ -69,6 +77,7 @@ impl ArtifactStore {
             .ok_or(ArtifactError::WrongType)
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CandleRequirement {
     pub resolution: Resolution,
@@ -77,6 +86,7 @@ pub struct CandleRequirement {
     pub price_unit: PriceUnit,
     pub require_volume: bool,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnalysisBinding {
     pub name: BindingId,
@@ -85,22 +95,26 @@ pub struct AnalysisBinding {
     pub major: u16,
     pub required: bool,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnalysisRequirements {
     pub candles: CandleRequirement,
     pub dependencies: Vec<AnalysisBinding>,
 }
+
 pub struct AnalysisContext<'a> {
     pub candles: &'a CandleSeries,
     pub dependencies: &'a ArtifactStore,
     pub as_of: TimestampMs,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AnalysisValue {
     Range(analysis_model::RangeAnalysis),
     Volume(analysis_model::VolumeAnalysis),
     Trend(analysis_model::TrendAnalysis),
 }
+
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum AnalysisError {
     #[error("invalid analysis input: {0}")]
@@ -114,14 +128,19 @@ pub enum AnalysisError {
     #[error("numeric failure")]
     NumericFailure,
 }
+
 pub trait Analyzer: Send + Sync {
     /// Stateful analyzers must not share computed outputs across different instances.
     fn stateful(&self) -> bool {
         false
     }
+
     fn descriptor(&self) -> plugin_api::PluginDescriptor;
     fn instance(&self) -> &InstanceId;
     fn config_digest(&self) -> &ContentHash;
     fn requirements(&self, resolution: Resolution, price_unit: PriceUnit) -> AnalysisRequirements;
     fn analyze(&self, ctx: &AnalysisContext<'_>) -> Result<AnalysisValue, AnalysisError>;
 }
+
+#[cfg(test)]
+mod tests;

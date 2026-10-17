@@ -10,6 +10,7 @@ fn reason(code: &str, field: &str, actual: Option<f64>, expected: impl ToString)
         expected: expected.to_string(),
     }
 }
+
 #[path = "rule_checks.rs"]
 mod checks;
 #[path = "rule_inputs.rs"]
@@ -24,6 +25,7 @@ pub(super) fn evaluate(
     if let Some(result) = crate::filters::evaluate(context, config) {
         return result;
     }
+
     if let Some(signal) = &config.signal {
         if context
             .candles
@@ -39,6 +41,7 @@ pub(super) fn evaluate(
                 )],
             );
         }
+
         return signal.evaluate(
             context.candles,
             &context.pool.pool,
@@ -46,14 +49,17 @@ pub(super) fn evaluate(
             context.as_of,
         );
     }
+
     let inputs = match required_inputs(context, config) {
         Ok(inputs) => inputs,
         Err(reasons) => return (Verdict::Unavailable, reasons),
     };
+
     let rejected = hard_failures(context, config, thresholds, &inputs);
     if !rejected.is_empty() {
         return (Verdict::Reject, rejected);
     }
+
     if config
         .trend
         .as_ref()
@@ -72,14 +78,17 @@ pub(super) fn evaluate(
             )],
         );
     }
+
     let watch = watch_reasons(inputs.range, thresholds);
     if !watch.is_empty() {
         return (Verdict::Watch, watch);
     }
+
     let inactive = volume_failures(inputs.volume, thresholds, config.research.is_some());
     if !inactive.is_empty() {
         return (Verdict::Reject, inactive);
     }
+
     if let Some(policy) = &config.research {
         let position = inputs
             .range
@@ -97,6 +106,7 @@ pub(super) fn evaluate(
                 )],
             );
         };
+
         let bounds = inputs.range.range.as_ref().unwrap();
         let expected = analysis_model::RangePosition::new(
             bounds.lower.get(),
@@ -118,6 +128,7 @@ pub(super) fn evaluate(
                 )],
             );
         }
+
         if position.raw_pct < policy.min_position_pct || position.raw_pct > policy.max_position_pct
         {
             return (
@@ -130,6 +141,7 @@ pub(super) fn evaluate(
                 )],
             );
         }
+
         return (
             Verdict::Match,
             vec![
@@ -177,5 +189,6 @@ pub(super) fn evaluate(
             ],
         );
     }
+
     (Verdict::Match, vec![])
 }

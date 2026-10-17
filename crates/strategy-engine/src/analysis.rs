@@ -11,6 +11,7 @@ pub(crate) struct PreparedAnalysis {
     pub(crate) trend: Option<TrendAnalysis>,
     pub(crate) input_hash: ContentHash,
 }
+
 pub(crate) fn analyze_pool(
     plan: &StrategyPlan<'_>,
     series: &CandleSeries,
@@ -44,11 +45,13 @@ pub(crate) fn analyze_pool(
             {
                 Some(trend)
             }
+
             _ => None,
         })
     } else {
         None
     };
+
     match (range.value, volume.value) {
         (AnalysisValue::Range(range), AnalysisValue::Volume(volume)) => Ok(PreparedAnalysis {
             candles: series.clone(),
@@ -61,6 +64,7 @@ pub(crate) fn analyze_pool(
         _ => Err("incompatible analyzer output"),
     }
 }
+
 pub(crate) fn candle_request(
     plan: &StrategyPlan<'_>,
     pool: &PoolSnapshot,

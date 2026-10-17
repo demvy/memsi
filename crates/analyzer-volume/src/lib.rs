@@ -5,3 +5,6 @@ mod robust;
 pub use analyzer::VolumeAnalyzer;
 pub use config::VolumeConfig;
 pub use robust::RobustVolumeConfig;
+
+#[cfg(test)]
+mod tests;

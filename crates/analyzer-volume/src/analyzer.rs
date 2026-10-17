@@ -8,6 +8,7 @@ pub struct VolumeAnalyzer {
     config: VolumeConfig,
     digest: ContentHash,
 }
+
 impl VolumeAnalyzer {
     pub fn new(instance: InstanceId, config: VolumeConfig) -> Result<Self, AnalysisError> {
         if config.recent_bars == 0
@@ -17,9 +18,11 @@ impl VolumeAnalyzer {
         {
             return Err(AnalysisError::InvalidInput("volume windows".into()));
         }
+
         if let Some(robust) = &config.robust {
             robust.validate(config.recent_bars + config.baseline_bars)?;
         }
+
         let digest = ContentHash::of(&config).map_err(|_| AnalysisError::NumericFailure)?;
         Ok(Self {
             instance,
@@ -27,6 +30,7 @@ impl VolumeAnalyzer {
             digest,
         })
     }
+
     pub fn descriptor_static() -> plugin_api::PluginDescriptor {
         plugin_api::PluginDescriptor {
             id: PluginId::new("analyzer.volume").unwrap(),
@@ -38,6 +42,7 @@ impl VolumeAnalyzer {
             )],
         }
     }
+
     pub fn analyze_values(
         &self,
         values: &[f64],
@@ -45,6 +50,7 @@ impl VolumeAnalyzer {
     ) -> Result<VolumeAnalysis, AnalysisError> {
         self.analyze_metrics(values, unit)
     }
+
     fn analyze_metrics(
         &self,
         values: &[f64],
@@ -57,13 +63,16 @@ impl VolumeAnalyzer {
                 need: count,
             });
         }
+
         if unit == VolumeUnit::Unknown {
             return Err(AnalysisError::UnsupportedUnits);
         }
+
         let v = &values[values.len() - count..];
         if v.iter().any(|x| !x.is_finite() || *x < 0.0) {
             return Err(AnalysisError::InvalidInput("volume numbers".into()));
         }
+
         let (baseline, recent) = v.split_at(self.config.baseline_bars);
         let b = baseline.iter().sum::<f64>() / baseline.len() as f64;
         let r = recent.iter().sum::<f64>() / recent.len() as f64;
@@ -72,6 +81,7 @@ impl VolumeAnalyzer {
         } else {
             None
         };
+
         let activity = recent.iter().filter(|x| **x > 0.0).count() as f64 / recent.len() as f64;
         let last = v[count - 1];
         let reference = &v[..count - 1];
@@ -87,6 +97,7 @@ impl VolumeAnalyzer {
                 Some(_) => ActivityState::Normal,
             }
         };
+
         Ok(VolumeAnalysis {
             robust: self
                 .config
@@ -109,16 +120,20 @@ impl VolumeAnalyzer {
         })
     }
 }
+
 impl Analyzer for VolumeAnalyzer {
     fn descriptor(&self) -> plugin_api::PluginDescriptor {
         Self::descriptor_static()
     }
+
     fn instance(&self) -> &InstanceId {
         &self.instance
     }
+
     fn config_digest(&self) -> &ContentHash {
         &self.digest
     }
+
     fn requirements(&self, resolution: Resolution, price_unit: PriceUnit) -> AnalysisRequirements {
         let n = self.config.recent_bars + self.config.baseline_bars;
         AnalysisRequirements {
@@ -132,10 +147,12 @@ impl Analyzer for VolumeAnalyzer {
             dependencies: vec![],
         }
     }
+
     fn analyze(&self, ctx: &AnalysisContext<'_>) -> Result<AnalysisValue, AnalysisError> {
         if ctx.candles.end_exclusive > ctx.as_of {
             return Err(AnalysisError::InvalidInput("future candle cutoff".into()));
         }
+
         ctx.candles
             .validate(self.config.recent_bars + self.config.baseline_bars)
             .map_err(|e| AnalysisError::InvalidInput(e.to_string()))?;

@@ -25,6 +25,7 @@ impl Monitor<'_> {
                 if let Some(diagnostics) = &self.diagnostics {
                     diagnostics.evaluation(&candidate, &evaluation);
                 }
+
                 let next: Option<Vec<_>> = self
                     .dependencies
                     .strategies
@@ -57,6 +58,7 @@ impl Monitor<'_> {
                                 report,
                             );
                         }
+
                         if decision.verdict == strategy_api::Verdict::Match {
                             self.emit(
                                 LifecycleEvent::StrategyMatched {
@@ -69,6 +71,7 @@ impl Monitor<'_> {
                         }
                     }
                 }
+
                 panicked = evaluation.strategies.iter().any(|item| {
                     item.trace.iter().any(|probe| {
                         probe.reason == provider_api::ProviderError::WorkerPanicked.to_string()
@@ -83,9 +86,11 @@ impl Monitor<'_> {
                 if panicked {
                     report.candidate_error(log_panic, "candidate provider worker panicked");
                 }
+
                 if !panicked {
                     self.candidate_panics.remove(&candidate.token);
                 }
+
                 next_check_secs = evaluation
                     .strategies
                     .iter()
@@ -108,11 +113,13 @@ impl Monitor<'_> {
                     if let Some(error) = item.unavailable {
                         report.candidate_error(logging, error);
                     }
+
                     if self.dependencies.config.mode != AppMode::Signal
                         || cancellation.is_cancelled()
                     {
                         continue;
                     }
+
                     if let Some(mut decision) = item.decision {
                         if !decision
                             .warnings
@@ -121,6 +128,7 @@ impl Monitor<'_> {
                         {
                             decision.warnings.push("PartialDiscoveryCoverage".into());
                         }
+
                         let accepted_at = self.dependencies.clock.now()?;
                         match signal_service::accept(
                             self.dependencies.state,
@@ -139,26 +147,32 @@ impl Monitor<'_> {
                                     report,
                                 );
                             }
+
                             Ok(Acceptance::Suppressed) => report.suppressed += 1,
                             Err(error) => report.candidate_error(logging, error.to_string()),
                         }
                     }
                 }
             }
+
             Ok(Err(error)) => {
                 if any_logging && let Some(diagnostics) = &self.diagnostics {
                     diagnostics.failure(&candidate, &error.to_string());
                 }
+
                 panicked = matches!(error, provider_api::ProviderError::WorkerPanicked);
                 report.candidate_error(any_logging, error.to_string());
             }
+
             Err(_) => {
                 if any_logging && let Some(diagnostics) = &self.diagnostics {
                     diagnostics.failure(&candidate, "candidate deadline exceeded");
                 }
+
                 report.candidate_error(any_logging, "candidate deadline exceeded");
             }
         }
+
         if self.screened_watchlist() {
             if !admitted_watch {
                 self.watch.remove(&candidate.token);
@@ -183,6 +197,7 @@ impl Monitor<'_> {
                 entry.candidate = candidate.clone();
             }
         }
+
         if panicked {
             report.worker_panics += 1;
             let count = self
@@ -196,14 +211,18 @@ impl Monitor<'_> {
                     "candidate quarantined after repeated worker panics",
                 );
             }
+
             next_check_secs = next_check_secs.max(60);
         }
+
         if self.screened_watchlist() {
             if let Some(entry) = self.watch.get_mut(&candidate.token) {
                 entry.next_due = self.next_discovery;
             }
+
             return Ok(());
         }
+
         next_check_secs = next_check_secs.max(self.dependencies.config.monitor.min_recheck_secs);
         if let Some(entry) = self.watch.get_mut(&candidate.token) {
             entry.next_due = self
@@ -225,9 +244,11 @@ impl Monitor<'_> {
                 };
             }
         }
+
         Ok(())
     }
 }
+
 impl CycleReport {
     fn candidate_error(&mut self, logging: bool, message: impl Into<String>) {
         if logging {
@@ -235,5 +256,22 @@ impl CycleReport {
         } else {
             self.muted_errors += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::report;
+
+    #[test]
+    fn muted_diagnostics_still_count_toward_health_while_visible_messages_are_retained() {
+        let mut report = report();
+        let previous_muted = report.muted_errors;
+        let previous_errors = report.errors.len();
+        report.candidate_error(false, "muted diagnostic");
+        report.candidate_error(true, "visible diagnostic");
+        assert_eq!(report.muted_errors, previous_muted + 1);
+        assert_eq!(report.errors.len(), previous_errors + 1);
+        assert_eq!(report.errors.last().unwrap(), "visible diagnostic");
     }
 }

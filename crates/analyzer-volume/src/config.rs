@@ -10,6 +10,7 @@ pub struct VolumeConfig {
     pub baseline_bars: usize,
     pub elevated_ratio: NonNegative,
 }
+
 impl Default for VolumeConfig {
     fn default() -> Self {
         Self {

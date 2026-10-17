@@ -24,6 +24,7 @@ pub struct RangeDetectorConfig {
     pub max_outside_streak: usize,
     pub occupancy_bins: usize,
 }
+
 impl Default for RangeDetectorConfig {
     fn default() -> Self {
         Self {
@@ -51,19 +52,23 @@ impl Default for RangeDetectorConfig {
         }
     }
 }
+
 impl RangeDetectorConfig {
     pub(crate) fn validate(&self) -> Result<(), RangeError> {
         if self.windows.is_empty() {
             return Err(RangeError::InvalidConfig("windows must not be empty"));
         }
+
         if self.windows.iter().any(|&window| window <= 1) {
             return Err(RangeError::InvalidConfig(
                 "all windows must be greater than 1",
             ));
         }
+
         if self.min_bars <= 1 {
             return Err(RangeError::InvalidConfig("min_bars must be greater than 1"));
         }
+
         check_unit_interval(self.lower_quantile, "lower_quantile must be in [0, 1]")?;
         check_unit_interval(self.upper_quantile, "upper_quantile must be in [0, 1]")?;
         if self.lower_quantile >= self.upper_quantile {
@@ -71,6 +76,7 @@ impl RangeDetectorConfig {
                 "lower_quantile must be less than upper_quantile",
             ));
         }
+
         check_unit_interval(
             self.candidate_threshold,
             "candidate_threshold must be in [0, 1]",
@@ -84,6 +90,7 @@ impl RangeDetectorConfig {
                 "candidate_threshold must not exceed confirmed_threshold",
             ));
         }
+
         check_nonnegative_finite(
             self.near_best_tolerance,
             "near_best_tolerance must be finite and nonnegative",
@@ -114,6 +121,7 @@ impl RangeDetectorConfig {
         {
             return Err(RangeError::InvalidConfig("tail_fraction must be in (0, 1]"));
         }
+
         check_nonnegative_finite(
             self.acceptance_margin,
             "acceptance_margin must be finite and nonnegative",
@@ -126,19 +134,23 @@ impl RangeDetectorConfig {
                 "traversal_zone must be in (0, 1)",
             ));
         }
+
         if self.traversal_target == 0 {
             return Err(RangeError::InvalidConfig(
                 "traversal_target must be positive",
             ));
         }
+
         if self.occupancy_bins < 2 {
             return Err(RangeError::InvalidConfig(
                 "occupancy_bins must be at least 2",
             ));
         }
+
         Ok(())
     }
 }
+
 fn check_unit_interval(value: f64, message: &'static str) -> Result<(), RangeError> {
     if value.is_finite() && (0.0..=1.0).contains(&value) {
         Ok(())
@@ -146,6 +158,7 @@ fn check_unit_interval(value: f64, message: &'static str) -> Result<(), RangeErr
         Err(RangeError::InvalidConfig(message))
     }
 }
+
 fn check_nonnegative_finite(value: f64, message: &'static str) -> Result<(), RangeError> {
     if value.is_finite() && value >= 0.0 {
         Ok(())
@@ -153,6 +166,7 @@ fn check_nonnegative_finite(value: f64, message: &'static str) -> Result<(), Ran
         Err(RangeError::InvalidConfig(message))
     }
 }
+
 fn check_ordered_pair(good: f64, bad: f64, message: &'static str) -> Result<(), RangeError> {
     if good.is_finite() && bad.is_finite() && good < bad {
         Ok(())
@@ -160,6 +174,7 @@ fn check_ordered_pair(good: f64, bad: f64, message: &'static str) -> Result<(), 
         Err(RangeError::InvalidConfig(message))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +182,7 @@ mod tests {
     fn defaults_are_valid() {
         assert!(RangeDetectorConfig::default().validate().is_ok());
     }
+
     #[test]
     fn rejects_invalid_configurations() {
         let cases = vec![

@@ -24,6 +24,7 @@ pub(super) fn build(
     {
         return Err(StateError::InvalidRequest);
     }
+
     let event_at = reason
         .actual
         .as_deref()
@@ -41,6 +42,7 @@ pub(super) fn build(
     if expires_at <= now {
         return Err(StateError::InvalidRequest);
     }
+
     let kind = SignalKind::ResearchMatch;
     let dedupe_key = ContentHash::of(&(
         1u8,
@@ -64,12 +66,14 @@ pub(super) fn build(
             {
                 return Err(StateError::InvalidRequest);
             }
+
             facts.push(SignalFact::Text {
                 label: format!("{metric:?}"),
                 value: observation.value.get().to_string(),
             });
         }
     }
+
     crate::token_age::append(&mut facts, decision);
     let signal = Signal {
         id,
@@ -86,6 +90,7 @@ pub(super) fn build(
         warnings: decision.warnings.clone(),
         snapshot_hash: decision.evidence.snapshot_hash.clone(),
     };
+
     Ok(SignalDraft {
         signal,
         dedupe_key,

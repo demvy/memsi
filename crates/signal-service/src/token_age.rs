@@ -11,9 +11,11 @@ pub(super) fn append(facts: &mut Vec<SignalFact>, decision: &StrategyDecision) {
     else {
         return;
     };
+
     if age.fetched_at > decision.as_of {
         return;
     }
+
     let seconds = age.value.get() + (decision.as_of.get() - age.fetched_at.get()) as f64 / 1000.;
     if seconds.is_finite() && seconds >= 0. {
         facts.push(SignalFact::Text {

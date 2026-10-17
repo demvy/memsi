@@ -8,6 +8,7 @@ pub struct RobustVolumeConfig {
     pub short_bars: usize,
     pub long_bars: usize,
 }
+
 impl Default for RobustVolumeConfig {
     fn default() -> Self {
         Self {
@@ -16,14 +17,17 @@ impl Default for RobustVolumeConfig {
         }
     }
 }
+
 impl RobustVolumeConfig {
     pub fn validate(&self, available: usize) -> Result<(), AnalysisError> {
         if self.short_bars < 2 || self.long_bars < self.short_bars || self.long_bars > available {
             return Err(AnalysisError::InvalidInput("volume slope windows".into()));
         }
+
         Ok(())
     }
 }
+
 fn median(values: &[f64]) -> f64 {
     let mut sorted = values.to_vec();
     let mid = sorted.len() / 2;
@@ -35,6 +39,7 @@ fn median(values: &[f64]) -> f64 {
         *upper
     }
 }
+
 fn slope(values: &[f64]) -> f64 {
     let center = (values.len() - 1) as f64 / 2.0;
     let mut numerator = 0.0;
@@ -44,8 +49,10 @@ fn slope(values: &[f64]) -> f64 {
         numerator += x * volume.ln_1p();
         denominator += x * x;
     }
+
     numerator / denominator
 }
+
 pub fn analyze(
     config: &RobustVolumeConfig,
     baseline: &[f64],
@@ -62,6 +69,7 @@ pub fn analyze(
     } else {
         None
     };
+
     let values: Vec<_> = baseline
         .iter()
         .chain(recent)
@@ -73,6 +81,7 @@ pub fn analyze(
     if !short_slope.is_finite() || !long_slope.is_finite() {
         return Err(AnalysisError::NumericFailure);
     }
+
     let state = if recent_median == 0.0 {
         ActivityState::Inactive
     } else {
@@ -82,6 +91,7 @@ pub fn analyze(
             Some(_) => ActivityState::Normal,
         }
     };
+
     Ok(RobustVolumeAnalysis {
         baseline_median: NonNegative::new(baseline_median)
             .map_err(|_| AnalysisError::NumericFailure)?,

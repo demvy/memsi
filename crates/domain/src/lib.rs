@@ -17,6 +17,7 @@ pub enum DomainError {
     #[error("time arithmetic overflow")]
     TimeOverflow,
 }
+
 mod amount;
 pub use amount::AtomicAmount;
 mod activity;
@@ -26,3 +27,6 @@ pub use token_metrics::{MetricBounds, TokenMetric, TokenMetrics};
 
 mod chain_state;
 pub use chain_state::*;
+
+#[cfg(test)]
+mod tests;

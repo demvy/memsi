@@ -21,14 +21,18 @@ impl AtomicAmount {
                 "expected canonical uint256 decimal string",
             ));
         }
+
         Ok(Self(value))
     }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
     pub fn is_zero(&self) -> bool {
         self.0 == "0"
     }
+
     pub fn checked_add(&self, other: &Self) -> Result<Self, DomainError> {
         let mut left = self.0.bytes().rev();
         let mut right = other.0.bytes().rev();
@@ -40,19 +44,23 @@ impl AtomicAmount {
             if a.is_none() && b.is_none() && carry == 0 {
                 break;
             }
+
             let sum = a.map_or(0, |d| d - b'0') + b.map_or(0, |d| d - b'0') + carry;
             digits.push(b'0' + sum % 10);
             carry = sum / 10;
         }
+
         digits.reverse();
         Self::new(String::from_utf8(digits).expect("decimal digits"))
     }
+
     /// Exact display conversion, never floating-point arithmetic.
     pub fn units(&self, decimals: u8) -> String {
         let places = usize::from(decimals);
         if places == 0 {
             return self.0.clone();
         }
+
         if places >= self.0.len() {
             format!("0.{}{}", "0".repeat(places - self.0.len()), self.0)
         } else {
@@ -61,6 +69,7 @@ impl AtomicAmount {
         }
     }
 }
+
 impl Ord for AtomicAmount {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0
@@ -69,32 +78,38 @@ impl Ord for AtomicAmount {
             .then_with(|| self.0.cmp(&other.0))
     }
 }
+
 impl PartialOrd for AtomicAmount {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
+
 impl From<u64> for AtomicAmount {
     fn from(value: u64) -> Self {
         Self(value.to_string())
     }
 }
+
 impl From<u128> for AtomicAmount {
     fn from(value: u128) -> Self {
         Self(value.to_string())
     }
 }
+
 impl TryFrom<String> for AtomicAmount {
     type Error = DomainError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::new(value)
     }
 }
+
 impl From<AtomicAmount> for String {
     fn from(value: AtomicAmount) -> Self {
         value.0
     }
 }
+
 impl fmt::Display for AtomicAmount {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)

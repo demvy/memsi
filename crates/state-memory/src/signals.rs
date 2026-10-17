@@ -7,6 +7,7 @@ impl SignalRepository for MemoryState {
     fn durability(&self) -> Durability {
         Durability::Volatile
     }
+
     async fn accept_signal_and_deliveries(
         &self,
         draft: SignalDraft,
@@ -24,6 +25,7 @@ impl SignalRepository for MemoryState {
         {
             return Ok(Acceptance::Suppressed);
         }
+
         let staged = targets
             .iter()
             .map(|target| {
@@ -42,6 +44,7 @@ impl SignalRepository for MemoryState {
                     destination: target.destination.clone(),
                     part_index: 0,
                 };
+
                 Ok((
                     id,
                     DeliveryRow {
@@ -82,11 +85,13 @@ impl SignalRepository for MemoryState {
         {
             return Err(StateError::Capacity);
         }
+
         let mut removable_signals = removable_signals;
         removable_signals.sort();
         for (_, id) in removable_signals.into_iter().take(signals_needed) {
             inner.signals.remove(&id);
         }
+
         let mut terminal: Vec<_> = inner
             .deliveries
             .iter()
@@ -97,6 +102,7 @@ impl SignalRepository for MemoryState {
         for (_, id) in terminal.into_iter().take(deliveries_needed) {
             inner.deliveries.remove(&id);
         }
+
         let id = draft.signal.id.clone();
         inner.dedupe.insert(
             draft.dedupe_key,
@@ -109,6 +115,7 @@ impl SignalRepository for MemoryState {
         inner.deliveries.extend(staged);
         Ok(Acceptance::Accepted(id))
     }
+
     async fn signal_history(
         &self,
         before: Option<&SignalCursor>,
@@ -117,6 +124,7 @@ impl SignalRepository for MemoryState {
         if !(1..=200).contains(&limit) {
             return Err(StateError::InvalidRequest);
         }
+
         let inner = self.lock()?;
         let mut signals: Vec<_> = inner
             .signals
@@ -135,10 +143,12 @@ impl SignalRepository for MemoryState {
         });
         Ok(signals.into_iter().take(limit).cloned().collect())
     }
+
     async fn list_signals(&self, limit: usize) -> Result<Vec<Signal>, StateError> {
         if limit == 0 || limit > 1000 {
             return Err(StateError::InvalidRequest);
         }
+
         let inner = self.lock()?;
         let mut signals: Vec<_> = inner.signals.values().cloned().collect();
         signals.sort_by(|left, right| {

@@ -12,6 +12,7 @@ use std::{
     collections::BTreeMap,
     panic::{AssertUnwindSafe, catch_unwind},
 };
+
 use strategy_api::*;
 /// At most four strategy branches perform I/O concurrently. Output order is stable.
 pub async fn evaluate(
@@ -23,6 +24,7 @@ pub async fn evaluate(
 ) -> Vec<StrategyReport> {
     evaluate_internal(evaluation, strategies, analyzers, hub, ctx, None).await
 }
+
 pub async fn evaluate_mode(
     evaluation: &Evaluation<'_>,
     strategies: &BTreeMap<InstanceId, Box<dyn Strategy>>,
@@ -33,6 +35,7 @@ pub async fn evaluate_mode(
 ) -> Vec<StrategyReport> {
     evaluate_internal(evaluation, strategies, analyzers, hub, ctx, Some(mode)).await
 }
+
 async fn evaluate_internal(
     evaluation: &Evaluation<'_>,
     strategies: &BTreeMap<InstanceId, Box<dyn Strategy>>,
@@ -47,6 +50,7 @@ async fn evaluate_internal(
         if selected_mode.is_some_and(|mode| strategy.mode() != mode) {
             continue;
         }
+
         match catch_unwind(AssertUnwindSafe(|| {
             strategy.prefilter(evaluation.candidate, evaluation.as_of)
         })) {
@@ -61,23 +65,27 @@ async fn evaluate_internal(
                 });
                 continue;
             }
+
             Err(_) => {
                 reports.push(StrategyReport::unavailable(instance, "prefilter panic"));
                 continue;
             }
         }
+
         if let Some(report) =
             crate::screen_token_metrics(strategy.as_ref(), evaluation.candidate, evaluation.as_of)
         {
             reports.push(report);
             continue;
         }
+
         let plan = planner::plan(strategy.as_ref(), analyzers);
         match plan {
             Ok(plan) => plans.push(plan),
             Err(error) => reports.push(StrategyReport::unavailable(instance, error)),
         }
     }
+
     let cache = ComputeCache::default();
     for mode in [StrategyMode::Active, StrategyMode::Shadow] {
         let phase: Vec<_> = plans
@@ -94,6 +102,7 @@ async fn evaluate_internal(
             let budget = (remaining / 2).min(std::time::Duration::from_secs(5));
             phase_context.deadline = now + budget;
         }
+
         let jobs = phase.iter().map(|plan| async {
             let work = run_strategy(
                 plan,
@@ -123,9 +132,11 @@ async fn evaluate_internal(
                 .await,
         );
     }
+
     reports.sort_by(|left, right| left.instance.cmp(&right.instance));
     reports
 }
+
 async fn run_strategy(
     plan: &StrategyPlan<'_>,
     evaluation: &Evaluation<'_>,
@@ -139,9 +150,11 @@ async fn run_strategy(
     if let Err(error) = ctx.check() {
         return StrategyReport::unavailable(instance, error);
     }
+
     if evaluation.close_grace_ms > 60_000 {
         return StrategyReport::unavailable(instance, "invalid close grace");
     }
+
     let max_probes = strategy.requirements().pool.max_probes;
     let selection = match select_strategy_pools(
         strategy,
@@ -152,15 +165,18 @@ async fn run_strategy(
         Ok(selection) => selection,
         Err(error) => return StrategyReport::unavailable(instance, error),
     };
+
     let mut report = StrategyReport::unavailable(instance, "no usable pool within probe budget");
     for excluded in selection.excluded {
         report.record(&excluded.pool, excluded.reason);
     }
+
     for pool in selection.ranked.iter().take(max_probes) {
         let request = match candle_request(plan, pool, evaluation, bars) {
             Ok(request) => request,
             Err(error) => return StrategyReport::unavailable(instance, error),
         };
+
         let series = match hub.candles(&request, ctx).await {
             Ok(series) => series,
             Err(error) => {
@@ -168,10 +184,12 @@ async fn run_strategy(
                 continue;
             }
         };
+
         if let Err(error) = series.validate(plan.candles.min_bars) {
             report.record(&pool.pool, error);
             continue;
         }
+
         let analysis = match analyze_pool(plan, &series, cache, evaluation.as_of) {
             Ok(analysis) => analysis,
             Err(error) => {
@@ -179,13 +197,16 @@ async fn run_strategy(
                 continue;
             }
         };
+
         if let Err(error) = ctx.check() {
             return StrategyReport::unavailable(instance, error);
         }
+
         let decision = match decide(strategy, pool, evaluation, &analysis) {
             Ok(decision) => decision,
             Err(error) => return StrategyReport::unavailable(instance, error),
         };
+
         let retry_pool = matches!(decision.verdict, Verdict::Reject | Verdict::Unavailable);
         report.decision = Some(decision);
         report.unavailable = None;
@@ -193,5 +214,6 @@ async fn run_strategy(
             return report;
         }
     }
+
     report
 }

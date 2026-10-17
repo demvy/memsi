@@ -123,6 +123,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strategy-api",
+ "strategy-range",
 ]
 
 [[package]]
@@ -152,6 +153,7 @@ dependencies = [
  "strategy-high-risk",
  "strategy-low-risk",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -162,6 +164,7 @@ dependencies = [
  "app-bootstrap",
  "app-config",
  "app-services",
+ "async-trait",
  "clap",
  "domain",
  "monitor-runtime",
@@ -191,14 +194,17 @@ name = "app-services"
 version = "0.1.0"
 dependencies = [
  "analysis-api",
+ "analyzer-volume",
  "async-trait",
  "data-hub",
  "domain",
  "futures",
+ "plugin-api",
  "provider-api",
  "serde",
  "strategy-api",
  "strategy-engine",
+ "strategy-range",
  "tokio",
 ]
 
@@ -1186,17 +1192,23 @@ name = "monitor-runtime"
 version = "0.1.0"
 dependencies = [
  "analysis-api",
+ "analyzer-range",
+ "analyzer-volume",
  "app-config",
  "app-services",
+ "async-trait",
  "discovery-api",
  "domain",
  "event-api",
  "futures",
+ "plugin-api",
  "provider-api",
  "serde",
  "signal-service",
  "state-api",
+ "state-memory",
  "strategy-api",
+ "strategy-range",
  "thiserror",
  "tokio",
 ]
@@ -1211,6 +1223,7 @@ dependencies = [
  "serde",
  "signal-api",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -1224,6 +1237,8 @@ dependencies = [
  "plugin-api",
  "provider-api",
  "serde",
+ "signal-api",
+ "tokio",
 ]
 
 [[package]]
@@ -1249,6 +1264,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "signal-api",
  "tokio",
 ]
 
@@ -1374,6 +1390,7 @@ dependencies = [
  "plugin-api",
  "serde",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -1777,6 +1794,7 @@ version = "0.1.0"
 dependencies = [
  "domain",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1793,6 +1811,8 @@ dependencies = [
 name = "signal-service"
 version = "0.1.0"
 dependencies = [
+ "analysis-model",
+ "async-trait",
  "domain",
  "event-api",
  "futures",
@@ -1800,6 +1820,7 @@ dependencies = [
  "provider-api",
  "signal-api",
  "state-api",
+ "state-memory",
  "strategy-api",
  "tokio",
 ]
@@ -2007,12 +2028,17 @@ version = "0.1.0"
 dependencies = [
  "analysis-api",
  "analysis-model",
+ "analyzer-range",
+ "analyzer-volume",
+ "async-trait",
  "data-hub",
  "domain",
  "futures",
+ "plugin-api",
  "provider-api",
  "serde",
  "strategy-api",
+ "strategy-range",
  "thiserror",
  "tokio",
 ]

@@ -15,3 +15,6 @@
 "app-services" = { "path" = "../app-services" }
 "data-hub" = { "path" = "../data-hub" }
 "serde_json" = "1"
+
+[dev-dependencies]
+strategy-range = { path = "../strategy-range" }

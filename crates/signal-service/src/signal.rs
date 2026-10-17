@@ -13,11 +13,13 @@ pub async fn accept(
     if decision.mode != StrategyMode::Active || decision.verdict != Verdict::Match {
         return Ok(Acceptance::Suppressed);
     }
+
     let draft = build(decision, symbol, now)?;
     repository
         .accept_signal_and_deliveries(draft, targets, now)
         .await
 }
+
 fn build(
     decision: &StrategyDecision,
     symbol: Option<&str>,
@@ -26,13 +28,16 @@ fn build(
     if decision.as_of > now || now.get() - decision.as_of.get() > 60_000 {
         return Err(StateError::InvalidRequest);
     }
+
     if decision.reasons.iter().any(|r| r.code == "PUMP_HIGH") {
         return crate::pump_signal::build(decision, symbol, now);
     }
+
     let pool = decision.pool.clone().ok_or(StateError::InvalidRequest)?;
     if pool.chain() != decision.token.chain() {
         return Err(StateError::InvalidRequest);
     }
+
     let range = decision
         .evidence
         .range
@@ -42,6 +47,7 @@ fn build(
     if decision.evidence.volume.is_none() || !bounds.latest_inside_bounds {
         return Err(StateError::InvalidRequest);
     }
+
     let research_only = decision
         .warnings
         .iter()
@@ -51,11 +57,13 @@ fn build(
     } else {
         SignalKind::ResearchMatch
     };
+
     let cooldown_secs = match decision.plugin.as_str() {
         "strategy.range-low-risk" => 1800,
         "strategy.range-medium-risk" => 1200,
         _ => 900,
     };
+
     let dedupe_key = ContentHash::of(&(
         1u8,
         &decision.instance,
@@ -86,11 +94,14 @@ fn build(
         if !proof.is_fresh(decision.as_of, u64::MAX) || !proof.is_fresh(now, u64::MAX) {
             return Err(StateError::InvalidRequest);
         }
+
         expires_at = expires_at.min(proof.valid_until);
     }
+
     if expires_at <= now {
         return Err(StateError::InvalidRequest);
     }
+
     let mut signal = Signal {
         id,
         created_at: now,
@@ -125,6 +136,7 @@ fn build(
         warnings: decision.warnings.clone(),
         snapshot_hash: decision.evidence.snapshot_hash.clone(),
     };
+
     if let Some(position) = &bounds.position {
         signal.facts.extend([
             SignalFact::Text {
@@ -149,6 +161,7 @@ fn build(
             },
         ]);
     }
+
     if let Some(market) = &decision.evidence.market {
         if market.validate().is_err()
             || market.pool != signal.pool
@@ -156,6 +169,7 @@ fn build(
         {
             return Err(StateError::InvalidRequest);
         }
+
         signal.facts.push(SignalFact::Text {
             label: "DEX".into(),
             value: market
@@ -183,6 +197,7 @@ fn build(
                 });
             }
         }
+
         let age = market
             .created_at
             .as_ref()
@@ -196,12 +211,14 @@ fn build(
             ),
         });
     }
+
     if decision.evidence.market.is_none() {
         signal.facts.push(SignalFact::Text {
             label: "Market facts".into(),
             value: "not captured in this decision".into(),
         });
     }
+
     let volume = decision.evidence.volume.as_ref().unwrap();
     let (ratio, state) = volume
         .robust
@@ -230,6 +247,7 @@ fn build(
             ),
         });
     }
+
     if let Some(trend) = &decision.evidence.trend {
         signal.facts.push(SignalFact::Text {
             label: "Price trend".into(),
@@ -239,6 +257,7 @@ fn build(
             ),
         });
     }
+
     Ok(SignalDraft {
         signal,
         dedupe_key,

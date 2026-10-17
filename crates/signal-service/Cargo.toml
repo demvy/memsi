@@ -15,3 +15,9 @@
 "notification-api" = { "path" = "../notification-api" }
 "provider-api" = { "path" = "../provider-api" }
 "tokio" = { "version" = "1", "features" = ["time"] }
+
+[dev-dependencies]
+analysis-model = { path = "../analysis-model" }
+async-trait = "0.1"
+state-memory = { path = "../state-memory" }
+tokio = { version = "1", features = ["rt", "macros"] }

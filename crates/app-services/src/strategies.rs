@@ -15,6 +15,7 @@ pub struct EvaluationReport {
     pub coverage: Coverage,
     pub strategies: Vec<StrategyReport>,
 }
+
 impl Services {
     pub async fn evaluate_strategies(
         &self,
@@ -27,6 +28,7 @@ impl Services {
         self.evaluate_with_metrics(token, strategies, analyzers, close_grace_ms, None, ctx)
             .await
     }
+
     /// Prefetched facts belong to this evaluation only; final strategy freshness checks still apply.
     pub async fn evaluate_with_metrics(
         &self,
@@ -40,6 +42,7 @@ impl Services {
         if strategies.is_empty() || strategies.len() > 64 || close_grace_ms > 60_000 {
             return Err(ProviderError::InvalidRequest);
         }
+
         ctx.check()?;
         let prefilter_time = self.evaluation_time()?;
         let mut candidate = Candidate {
@@ -51,6 +54,7 @@ impl Services {
             source: ProviderId::new("manual").unwrap(),
             liquidity_usd: Knowledge::unknown(),
         };
+
         let rejected: Option<Vec<_>> = strategies
             .iter()
             .map(|(instance, strategy)| {
@@ -81,6 +85,7 @@ impl Services {
                 strategies,
             });
         }
+
         let metrics = if let Some(metrics) = prefetched {
             metrics.clone()
         } else if strategies
@@ -95,11 +100,13 @@ impl Services {
                     )
                     .await?
                 }
+
                 None => crate::read_bounded(self.provider.token_metrics(token, ctx), ctx).await?,
             }
         } else {
             TokenMetrics::default()
         };
+
         let screened_at = self.evaluation_time()?;
         candidate.metrics = metrics.clone();
         let screened: Option<Vec<_>> = strategies
@@ -121,6 +128,7 @@ impl Services {
                 strategies,
             });
         }
+
         let pools = self.list_pools(token, ctx).await?;
         let as_of = self.evaluation_time()?;
         let candidate = Candidate {
@@ -132,12 +140,14 @@ impl Services {
             source: ProviderId::new("manual").unwrap(),
             liquidity_usd: Knowledge::unknown(),
         };
+
         let evaluation = Evaluation {
             candidate: &candidate,
             pools: &pools,
             as_of,
             close_grace_ms,
         };
+
         let reports =
             strategy_engine::evaluate(&evaluation, strategies, analyzers, &self.hub, ctx).await;
         Ok(EvaluationReport {

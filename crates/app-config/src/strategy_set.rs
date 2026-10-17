@@ -18,12 +18,15 @@ struct StrategySet {
     profiles: toml::Table,
     strategies: Vec<Definition>,
 }
+
 fn freshness() -> u64 {
     60
 }
+
 fn enabled() -> bool {
     true
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Definition {
@@ -39,6 +42,7 @@ struct Definition {
     #[serde(default)]
     profiles: Option<toml::Table>,
 }
+
 pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), ConfigError> {
     let set: StrategySet = input.try_into().map_err(|_| ConfigError::Parse)?;
     let mut names = BTreeSet::new();
@@ -50,6 +54,7 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
             "unique strategy definitions required (1..32)".into(),
         ));
     }
+
     let prototype = config.clone();
     config.strategies.clear();
     config
@@ -74,6 +79,7 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
                 })
                 .collect::<Result<toml::Table, ConfigError>>()?,
         };
+
         let fragment = toml::Table::from_iter([
             (
                 "logging".into(),
@@ -111,12 +117,14 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
                 }
             }
         }
+
         for mut plugin in expanded.plugins {
             if let Some(id) = bindings.get(plugin.id.as_str()) {
                 plugin.id = id.clone();
                 config.plugins.push(plugin);
             }
         }
+
         for mut strategy in expanded.strategies {
             let profile = strategy.id.as_str();
             strategy.id =
@@ -135,14 +143,18 @@ pub(crate) fn apply(input: toml::Value, config: &mut AppConfig) -> Result<(), Co
                         .insert(key.into(), toml::Value::String(renamed));
                 }
             }
+
             config.strategies.push(strategy);
         }
+
         config.monitor.poll_interval_secs = expanded.monitor.poll_interval_secs;
     }
+
     if config.strategies.is_empty() {
         return Err(ConfigError::Validation(
             "enable at least one strategy".into(),
         ));
     }
+
     Ok(())
 }

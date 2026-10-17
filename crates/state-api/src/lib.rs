@@ -11,16 +11,19 @@ pub enum Durability {
     Volatile,
     Durable,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeliveryTarget {
     pub sink: InstanceId,
     pub destination: String,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Acceptance {
     Accepted(ContentHash),
     Suppressed,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeliveryLease {
     pub delivery_id: ContentHash,
@@ -30,6 +33,7 @@ pub struct DeliveryLease {
     pub notification: Notification,
     pub attempt: u32,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum DeliveryStatus {
     Pending,
@@ -40,6 +44,7 @@ pub enum DeliveryStatus {
     FailedPermanent,
     Expired,
 }
+
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum StateError {
     #[error("unsupported or inconsistent state schema")]
@@ -53,12 +58,14 @@ pub enum StateError {
     #[error("invalid state request")]
     InvalidRequest,
 }
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SignalCursor {
     pub created_at: TimestampMs,
     pub id: ContentHash,
 }
+
 #[async_trait]
 pub trait SignalRepository: Send + Sync {
     fn durability(&self) -> Durability;
@@ -76,6 +83,7 @@ pub trait SignalRepository: Send + Sync {
         limit: usize,
     ) -> Result<Vec<Signal>, StateError>;
 }
+
 #[async_trait]
 pub trait DeliveryRepository: Send + Sync {
     async fn claim_due(
@@ -100,6 +108,7 @@ pub trait DeliveryRepository: Send + Sync {
     ) -> Result<(), StateError>;
     async fn fail(&self, lease: &DeliveryLease, now: TimestampMs) -> Result<(), StateError>;
 }
+
 #[derive(Debug, serde::Serialize)]
 pub struct StateStats {
     pub durability: &'static str,
@@ -109,11 +118,13 @@ pub struct StateStats {
     pub delivered: usize,
     pub failed: usize,
 }
+
 /// Common runtime port; selecting a backend does not change monitor behavior.
 #[async_trait]
 pub trait StateStore: SignalRepository + DeliveryRepository + MonitorRepository {
     async fn stats(&self) -> Result<StateStats, StateError>;
 }
+
 pub fn validate_acceptance(
     draft: &SignalDraft,
     targets: &[DeliveryTarget],
@@ -132,10 +143,12 @@ pub fn validate_acceptance(
     {
         return Err(StateError::InvalidRequest);
     }
+
     let payload = serde_json::to_vec(signal).map_err(|_| StateError::InvalidRequest)?;
     if payload.len() > 16_384 {
         return Err(StateError::InvalidRequest);
     }
+
     let mut unique = std::collections::BTreeSet::new();
     for target in targets {
         if target.destination.is_empty()
@@ -145,5 +158,9 @@ pub fn validate_acceptance(
             return Err(StateError::InvalidRequest);
         }
     }
+
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

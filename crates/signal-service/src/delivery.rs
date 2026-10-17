@@ -11,11 +11,13 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
 pub type Sinks = BTreeMap<InstanceId, Arc<dyn NotificationSink>>;
 #[derive(Default)]
 pub struct DeliveryPolicy {
     pub retry_unknown: bool,
 }
+
 /// Claims one row at a time: the lease never spends its lifetime waiting in a worker queue.
 pub async fn deliver_one(
     repository: &dyn DeliveryRepository,
@@ -26,6 +28,7 @@ pub async fn deliver_one(
 ) -> Result<bool, StateError> {
     deliver(repository, sinks, clock, cancellation, policy, None).await
 }
+
 pub async fn deliver_one_with_events(
     repository: &dyn DeliveryRepository,
     sinks: &Sinks,
@@ -36,6 +39,7 @@ pub async fn deliver_one_with_events(
 ) -> Result<bool, StateError> {
     deliver(repository, sinks, clock, cancellation, policy, Some(events)).await
 }
+
 async fn deliver(
     repository: &dyn DeliveryRepository,
     sinks: &Sinks,
@@ -47,6 +51,7 @@ async fn deliver(
     if cancellation.is_cancelled() {
         return Ok(false);
     }
+
     let now = clock.now()?;
     let worker = InstanceId::new("delivery-worker").unwrap();
     let Some(lease) = repository
@@ -57,14 +62,17 @@ async fn deliver(
     else {
         return Ok(false);
     };
+
     let Some(sink) = sinks.get(&lease.sink) else {
         repository.fail(&lease, now).await?;
         return Ok(true);
     };
+
     if lease.attempt > 5 || lease.notification.signal.expires_at <= now {
         repository.fail(&lease, now).await?;
         return Ok(true);
     }
+
     let mut notification = lease.notification.clone();
     notification.links = links::for_signal(&notification.signal);
     let ctx = RequestContext {
@@ -72,11 +80,13 @@ async fn deliver(
         deadline: Instant::now() + Duration::from_secs(10),
         cancellation: Cancellation::default(),
     };
+
     let work = async {
         tokio::time::timeout(Duration::from_secs(10), sink.send(&notification, &ctx))
             .await
             .unwrap_or(Err(NotificationError::UnknownOutcome))
     };
+
     let result = AssertUnwindSafe(work)
         .catch_unwind()
         .await
@@ -97,8 +107,10 @@ async fn deliver(
     {
         let _ = catch_unwind(AssertUnwindSafe(|| events.publish(event)));
     }
+
     Ok(true)
 }
+
 async fn settle(
     repository: &dyn DeliveryRepository,
     lease: &DeliveryLease,
@@ -119,14 +131,17 @@ async fn settle(
                 .retry(lease, lease.notification.signal.expires_at, true, now)
                 .await
         }
+
         Err(error) => {
             let unknown = matches!(error, NotificationError::UnknownOutcome);
             let delay = match error {
                 NotificationError::RateLimited { retry_after_ms } => {
                     retry_after_ms.clamp(1, 3_600_000)
                 }
+
                 _ => backoff_ms(lease),
             };
+
             let due = now
                 .checked_add(delay as i64)
                 .map_err(|_| StateError::InvalidRequest)?;
@@ -134,6 +149,7 @@ async fn settle(
         }
     }
 }
+
 fn backoff_ms(lease: &DeliveryLease) -> u64 {
     let ceiling = (1000u64 << lease.attempt.saturating_sub(1).min(6)).min(60_000);
     let hash = ContentHash::of(&(lease.delivery_id.clone(), lease.attempt))

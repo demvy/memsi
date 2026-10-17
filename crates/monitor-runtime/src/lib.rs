@@ -22,6 +22,7 @@ use signal_service::{
     Clock,
     delivery::{DeliveryPolicy, Sinks},
 };
+
 use state_api::{Acceptance, DeliveryTarget, StateError, StateStats, StateStore, WatchRecord};
 use std::{
     collections::BTreeMap,
@@ -32,6 +33,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
+
 use strategy_api::Strategy;
 pub struct Dependencies<'a> {
     pub config: &'a AppConfig,
@@ -45,6 +47,7 @@ pub struct Dependencies<'a> {
     pub targets: &'a [DeliveryTarget],
     pub clock: &'a dyn Clock,
 }
+
 pub struct Monitor<'a> {
     dependencies: Dependencies<'a>,
     query: DiscoveryQuery,
@@ -64,6 +67,7 @@ pub struct Monitor<'a> {
     status: Arc<RuntimeStatus>,
     diagnostics: Option<Arc<dyn MonitorDiagnostics>>,
 }
+
 #[derive(serde::Serialize)]
 pub struct CycleReport {
     pub discovered: usize,
@@ -83,17 +87,20 @@ pub struct CycleReport {
     pub event_dropped: usize,
     pub state: StateStats,
 }
+
 impl Drop for Monitor<'_> {
     fn drop(&mut self) {
         self.status.stop();
         let _ = self.events.close();
     }
 }
+
 impl<'a> Monitor<'a> {
     /// Identity of this monitor's persisted scheduler snapshot.
     pub fn checkpoint_scope(&self) -> &ContentHash {
         &self.checkpoint_scope
     }
+
     pub fn new(dependencies: Dependencies<'a>) -> Result<Self, StateError> {
         dependencies
             .config
@@ -105,9 +112,11 @@ impl<'a> Monitor<'a> {
         {
             return Err(StateError::InvalidRequest);
         }
+
         if dependencies.config.mode == AppMode::Signal && dependencies.targets.is_empty() {
             return Err(StateError::InvalidRequest);
         }
+
         let thresholds: Vec<_> = dependencies
             .strategies
             .values()
@@ -148,6 +157,7 @@ impl<'a> Monitor<'a> {
             bounds.lt = upper.lt;
             bounds.lte = upper.lte;
         }
+
         let legacy_query_digest = if query.max_items > 100 {
             let mut legacy = query.clone();
             legacy.max_items = 100;
@@ -155,6 +165,7 @@ impl<'a> Monitor<'a> {
         } else {
             None
         };
+
         let checkpoint_scope = ContentHash::of(&(
             1u8,
             dependencies.config.digest(),
@@ -193,22 +204,27 @@ impl<'a> Monitor<'a> {
             diagnostics: None,
         })
     }
+
     pub fn runtime_status(&self) -> Arc<RuntimeStatus> {
         self.status.clone()
     }
+
     pub fn with_diagnostics(mut self, diagnostics: Arc<dyn MonitorDiagnostics>) -> Self {
         self.diagnostics = Some(diagnostics);
         self
     }
+
     /// Subscribers own independent bounded receivers; they cannot veto core work.
     pub fn events(&self) -> Arc<events::EventRouter> {
         self.events.clone()
     }
+
     /// Bind the host's per-run registry before starting producers.
     pub fn with_events(mut self, events: Arc<events::EventRouter>) -> Self {
         self.events = events;
         self
     }
+
     /// One bounded discovery page and one fair batch of due candidates.
     fn panic_stats(&self, report: &mut CycleReport) {
         report.discovery_quarantined = self.source_panics >= PANIC_LIMIT;
@@ -218,10 +234,12 @@ impl<'a> Monitor<'a> {
             .filter(|count| **count >= PANIC_LIMIT)
             .count();
     }
+
     fn emit(&mut self, payload: LifecycleEvent, at: TimestampMs, report: &mut CycleReport) {
         let Some(sequence) = self.event_sequence.checked_add(1) else {
             return;
         };
+
         self.event_sequence = sequence;
         if let Ok(event) =
             EventEnvelope::new(at, self.event_scope.as_str().to_owned(), sequence, payload)
@@ -232,6 +250,7 @@ impl<'a> Monitor<'a> {
         }
     }
 }
+
 fn request_context(config: &AppConfig, cancellation: &Cancellation) -> RequestContext {
     RequestContext {
         priority: provider_api::RequestPriority::default(),
@@ -239,3 +258,6 @@ fn request_context(config: &AppConfig, cancellation: &Cancellation) -> RequestCo
         cancellation: cancellation.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests;

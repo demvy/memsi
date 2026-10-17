@@ -7,6 +7,7 @@ pub enum PriceUnit {
     UsdPerToken,
     QuotePerToken { quote: TokenId },
 }
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum VolumeUnit {
@@ -14,6 +15,7 @@ pub enum VolumeUnit {
     Token { token: TokenId },
     Unknown,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Observation<T> {
     pub value: T,
@@ -21,6 +23,7 @@ pub struct Observation<T> {
     pub observed_at: Option<TimestampMs>,
     pub fetched_at: TimestampMs,
 }
+
 impl<T> Observation<T> {
     pub fn is_fresh(&self, now: TimestampMs, max_age_ms: u64, require_source_time: bool) -> bool {
         let t = match self.observed_at {
@@ -28,10 +31,12 @@ impl<T> Observation<T> {
             None if !require_source_time => self.fetched_at,
             None => return false,
         };
+
         let delta = now.get() - t.get();
         delta >= 0 && delta as u64 <= max_age_ms
     }
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PoolKind {
@@ -40,6 +45,7 @@ pub enum PoolKind {
     ConcentratedTicks,
     ConcentratedBins,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PoolSnapshot {
     pub pool: PoolId,
@@ -54,6 +60,7 @@ pub struct PoolSnapshot {
     pub volume_24h_usd: Knowledge<Observation<NonNegative>>,
     pub created_at: Knowledge<TimestampMs>,
 }
+
 impl PoolSnapshot {
     pub fn validate(&self) -> Result<(), DomainError> {
         if self.pool.chain() != self.token0.chain()
@@ -62,20 +69,25 @@ impl PoolSnapshot {
         {
             return Err(DomainError::Market("pool token identity mismatch"));
         }
+
         if self.kind_verified && (self.kind == PoolKind::Unknown || self.protocol.is_none()) {
             return Err(DomainError::Market("verified pool needs protocol and kind"));
         }
+
         if let Some(proof) = &self.verification {
             proof.validate(self.pool.chain())?;
             if !self.kind_verified {
                 return Err(DomainError::Market("proof requires verified kind"));
             }
         }
+
         Ok(())
     }
+
     pub fn contains(&self, token: &TokenId) -> bool {
         &self.token0 == token || &self.token1 == token
     }
+
     pub fn concentrated_at(&self, as_of: TimestampMs) -> bool {
         self.concentrated()
             && self
@@ -83,6 +95,7 @@ impl PoolSnapshot {
                 .as_ref()
                 .is_none_or(|proof| proof.is_fresh(as_of, u64::MAX))
     }
+
     pub fn concentrated(&self) -> bool {
         self.kind_verified
             && matches!(
@@ -91,6 +104,7 @@ impl PoolSnapshot {
             )
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Candidate {
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
@@ -102,6 +116,7 @@ pub struct Candidate {
     pub source: ProviderId,
     pub liquidity_usd: Knowledge<Observation<NonNegative>>,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "RawCandle")]
 pub struct Candle {
@@ -117,6 +132,7 @@ pub struct Candle {
     )]
     pub buy_volume: Knowledge<NonNegative>,
 }
+
 fn missing_buy_volume(value: &Knowledge<NonNegative>) -> bool {
     matches!(
         value,
@@ -125,6 +141,7 @@ fn missing_buy_volume(value: &Knowledge<NonNegative>) -> bool {
         }
     )
 }
+
 #[derive(Deserialize)]
 struct RawCandle {
     open_time: TimestampMs,
@@ -136,6 +153,7 @@ struct RawCandle {
     #[serde(default = "Knowledge::unknown")]
     buy_volume: Knowledge<NonNegative>,
 }
+
 impl TryFrom<RawCandle> for Candle {
     type Error = DomainError;
     fn try_from(v: RawCandle) -> Result<Self, Self::Error> {
@@ -151,6 +169,7 @@ impl TryFrom<RawCandle> for Candle {
         Ok(candle)
     }
 }
+
 impl Candle {
     pub fn new(
         t: TimestampMs,
@@ -169,12 +188,15 @@ impl Candle {
             volume: v,
             buy_volume: Knowledge::unknown(),
         };
+
         if l > o || l > c || h < o || h < c {
             return Err(DomainError::Market("OHLC ordering"));
         }
+
         Ok(out)
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SeriesProvenance {
     pub provider: ProviderId,
@@ -182,6 +204,7 @@ pub struct SeriesProvenance {
     pub fetched_at: TimestampMs,
     pub input_hash: ContentHash,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CandleSeries {
     pub pool: PoolId,
@@ -193,17 +216,21 @@ pub struct CandleSeries {
     pub candles: Arc<[Candle]>,
     pub provenance: SeriesProvenance,
 }
+
 impl CandleSeries {
     pub fn validate(&self, min_bars: usize) -> Result<(), DomainError> {
         if min_bars == 0 || self.candles.len() < min_bars {
             return Err(DomainError::Market("insufficient history"));
         }
+
         if self.pool.chain() != self.priced_token.chain() {
             return Err(DomainError::Market("chain mismatch"));
         }
+
         if self.end_exclusive.get() % self.resolution.millis() != 0 {
             return Err(DomainError::Market("unaligned cutoff"));
         }
+
         for (i, c) in self.candles.iter().enumerate() {
             Candle::new(
                 c.open_time,
@@ -216,6 +243,7 @@ impl CandleSeries {
             if c.open_time.get() % self.resolution.millis() != 0 {
                 return Err(DomainError::Market("unaligned bar"));
             }
+
             let next = c.open_time.checked_add(self.resolution.millis())?;
             if i + 1 < self.candles.len() {
                 if next != self.candles[i + 1].open_time {
@@ -225,9 +253,11 @@ impl CandleSeries {
                 return Err(DomainError::Market("stale or partial last bar"));
             }
         }
+
         Ok(())
     }
 }
+
 /// Evidence for pool structure, separate from market metrics and token safety.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PoolVerificationEvidence {
@@ -239,6 +269,7 @@ pub struct PoolVerificationEvidence {
     pub input_hash: ContentHash,
     pub valid_until: TimestampMs,
 }
+
 impl PoolVerificationEvidence {
     pub fn validate(&self, chain: &ChainId) -> Result<(), DomainError> {
         let matching = match (chain, &self.state) {
@@ -248,8 +279,10 @@ impl PoolVerificationEvidence {
                     && block_hash.starts_with("0x")
                     && block_hash[2..].bytes().all(|b| b.is_ascii_hexdigit())
             }
+
             _ => false,
         };
+
         if !matching
             || self.available_at > self.valid_until
             || self.observed_at > self.available_at
@@ -259,8 +292,10 @@ impl PoolVerificationEvidence {
         {
             return Err(DomainError::Market("invalid pool verification evidence"));
         }
+
         Ok(())
     }
+
     pub fn is_fresh(&self, as_of: TimestampMs, max_age_ms: u64) -> bool {
         self.available_at <= as_of
             && as_of <= self.valid_until

@@ -27,6 +27,7 @@ pub struct RangeConfig {
     pub max_outside_streak: usize,
     pub occupancy_bins: usize,
 }
+
 macro_rules! fields {
     ($mapping:ident, $config:ident) => {
         $mapping ! ($config; windows, min_bars, lower_quantile, upper_quantile,
@@ -36,6 +37,7 @@ macro_rules! fields {
         tail_acceptance_good, max_outside_streak, occupancy_bins,)
     };
 }
+
 impl Default for RangeConfig {
     fn default() -> Self {
         let c = crate::detector_core::RangeDetectorConfig::default();
@@ -44,9 +46,11 @@ impl Default for RangeConfig {
                 Self { history_bars : None, $($f : $c .$f),* }
             };
         }
+
         fields!(build, c)
     }
 }
+
 impl From<RangeConfig> for crate::detector_core::RangeDetectorConfig {
     fn from(c: RangeConfig) -> Self {
         macro_rules! build {
@@ -54,6 +58,7 @@ impl From<RangeConfig> for crate::detector_core::RangeDetectorConfig {
                 Self { $($f : $c .$f),* }
             };
         }
+
         fields!(build, c)
     }
 }

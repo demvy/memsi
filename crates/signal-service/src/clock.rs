@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub trait Clock: Send + Sync {
     fn now(&self) -> Result<TimestampMs, StateError>;
 }
+
 pub struct SystemClock;
 impl Clock for SystemClock {
     fn now(&self) -> Result<TimestampMs, StateError> {

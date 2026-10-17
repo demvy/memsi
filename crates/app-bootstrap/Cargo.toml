@@ -45,3 +45,6 @@
 [[test]]
 name = "configuration"
 path = "tests/configuration.rs"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }

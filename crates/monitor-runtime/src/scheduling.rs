@@ -3,6 +3,7 @@ use super::*;
 pub(super) fn watch_retention_ms(config: &app_config::MonitorConfig) -> i64 {
     config.watchlist_retention_minutes as i64 * 60_000
 }
+
 pub(super) fn expire_watch(
     watch: &mut BTreeMap<TokenId, WatchRecord>,
     now: TimestampMs,
@@ -12,6 +13,7 @@ pub(super) fn expire_watch(
     watch.retain(|_, entry| now.get() - entry.last_seen.get() < retention_ms);
     before - watch.len()
 }
+
 impl Monitor<'_> {
     pub(super) fn screened_watchlist(&self) -> bool {
         self.dependencies
@@ -19,6 +21,7 @@ impl Monitor<'_> {
             .values()
             .any(|s| s.uses_token_metrics())
     }
+
     pub(super) async fn discover(
         &mut self,
         now: TimestampMs,
@@ -46,6 +49,7 @@ impl Monitor<'_> {
             )
             .await
         };
+
         let started = Instant::now();
         let batch = match AssertUnwindSafe(work)
             .catch_unwind()
@@ -63,14 +67,17 @@ impl Monitor<'_> {
                             .push("discovery quarantined after repeated worker panics".into());
                     }
                 }
+
                 report.errors.push(error.to_string());
                 return Ok(());
             }
+
             Err(_) => {
                 report.errors.push("discovery deadline exceeded".into());
                 return Ok(());
             }
         };
+
         if let Some(diagnostics) = &self.diagnostics {
             diagnostics.discovery(
                 self.dependencies.clock.now()?,
@@ -78,18 +85,21 @@ impl Monitor<'_> {
                 &batch.items,
             );
         }
+
         if batch.next_cursor.as_ref().is_some_and(|cursor| {
             cursor.query_digest != self.query.digest() || cursor.value.len() > 4096
         }) {
             report.errors.push("invalid discovery cursor".into());
             return Ok(());
         }
+
         self.source_panics = 0;
         self.cursor = if self.screened_watchlist() {
             None
         } else {
             batch.next_cursor
         };
+
         let capacity = self.dependencies.config.monitor.queue_capacity.min(1000);
         for candidate in batch.items.into_iter().take(self.query.max_items) {
             if candidate.token.chain() != &self.query.chain
@@ -106,6 +116,7 @@ impl Monitor<'_> {
                 report.dropped += 1;
                 continue;
             }
+
             report.discovered += 1;
             self.emit(
                 LifecycleEvent::CandidateObserved {
@@ -118,10 +129,12 @@ impl Monitor<'_> {
                 if let Some(entry) = self.watch.get_mut(&candidate.token) {
                     entry.last_seen = now;
                 }
+
                 self.pending_screening
                     .insert(candidate.token.clone(), candidate);
                 continue;
             }
+
             if let Some(entry) = self.watch.get_mut(&candidate.token) {
                 entry.candidate = candidate;
                 entry.last_seen = now;
@@ -140,8 +153,10 @@ impl Monitor<'_> {
                 report.dropped += 1;
             }
         }
+
         Ok(())
     }
+
     pub(super) fn due_candidates(&mut self, now: TimestampMs) -> Vec<Candidate> {
         let fresh: Vec<_> = self.pending_screening.keys().take(100).cloned().collect();
         let mut candidates: Vec<_> = fresh
@@ -151,6 +166,7 @@ impl Monitor<'_> {
         if self.screened_watchlist() {
             return candidates;
         }
+
         let selected: std::collections::BTreeSet<_> =
             candidates.iter().map(|c| c.token.clone()).collect();
         let mut due: Vec<_> = self
@@ -170,16 +186,23 @@ impl Monitor<'_> {
         } else {
             self.dependencies.config.monitor.candidate_workers
         };
+
         let batch_size = batch_size.saturating_sub(candidates.len());
         if due.len() > batch_size {
             due.select_nth_unstable_by(batch_size, |a, b| watch_order(a, b));
             due.truncate(batch_size);
         }
+
         due.sort_unstable_by(|a, b| watch_order(a, b));
         candidates.extend(due.into_iter().map(|entry| entry.candidate.clone()));
         candidates
     }
 }
+
 fn watch_order(a: &WatchRecord, b: &WatchRecord) -> std::cmp::Ordering {
     (a.next_due, a.order, &a.candidate.token).cmp(&(b.next_due, b.order, &b.candidate.token))
 }
+
+#[cfg(test)]
+#[path = "scheduling_tests.rs"]
+mod tests;

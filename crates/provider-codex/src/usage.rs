@@ -6,10 +6,12 @@ use sqlx::{
     Connection, SqliteConnection,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
 };
+
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+
 use tokio::sync::{Mutex, MutexGuard};
 pub(crate) struct UsageLedger {
     config: ApiUsageConfig,
@@ -17,10 +19,12 @@ pub(crate) struct UsageLedger {
     initial: std::collections::BTreeMap<String, u64>,
     memory_initialized: AtomicBool,
 }
+
 impl UsageLedger {
     pub(crate) fn new(config: ApiUsageConfig) -> Self {
         Self::with_credentials(config, app_config::local_env)
     }
+
     fn with_credentials(config: ApiUsageConfig, resolve: impl Fn(&str) -> Option<String>) -> Self {
         let mut initial = std::collections::BTreeMap::new();
         for (name, used) in &config.initial_used {
@@ -33,6 +37,7 @@ impl UsageLedger {
                     .or_insert(*used);
             }
         }
+
         Self {
             initial,
             config,
@@ -40,6 +45,7 @@ impl UsageLedger {
             memory_initialized: AtomicBool::new(false),
         }
     }
+
     fn period(&self, now: SystemTime) -> Result<String, ProviderError> {
         let seconds = now
             .duration_since(UNIX_EPOCH)
@@ -60,11 +66,13 @@ impl UsageLedger {
                 month -= 1;
             }
         }
+
         let month_value =
             time::Month::try_from(month).map_err(|_| ProviderError::UsageAccountingUnavailable)?;
         let day = self.config.reset_day.min(month_value.length(year));
         Ok(format!("{year:04}-{month:02}-{day:02}"))
     }
+
     async fn connection(&self) -> Result<MutexGuard<'_, Option<SqliteConnection>>, ProviderError> {
         let mut slot = self.connection.lock().await;
         if slot.is_none() {
@@ -72,6 +80,7 @@ impl UsageLedger {
             {
                 return Err(ProviderError::UsageAccountingUnavailable);
             }
+
             let options = SqliteConnectOptions::new()
                 .filename(&self.config.database)
                 .in_memory(self.config.database == ":memory:")
@@ -94,19 +103,24 @@ impl UsageLedger {
             self.memory_initialized.store(true, Ordering::Relaxed);
             *slot = Some(connection);
         }
+
         Ok(slot)
     }
+
     fn identity(key: &str) -> Result<String, ProviderError> {
         ContentHash::of(&("codex.api-key.v1", key))
             .map(|hash| hash.as_str().to_owned())
             .map_err(|_| ProviderError::UsageAccountingUnavailable)
     }
+
     fn initial_used(&self, id: &str, period: &str) -> u64 {
         if self.config.initial_period.as_deref() != Some(period) {
             return 0;
         }
+
         self.initial.get(id).copied().unwrap_or(0)
     }
+
     pub(crate) async fn charge_first(
         &self,
         keys: impl IntoIterator<Item = String>,
@@ -116,11 +130,14 @@ impl UsageLedger {
                 return Ok(key);
             }
         }
+
         Err(ProviderError::QuotaExhausted)
     }
+
     pub(crate) async fn charge(&self, key: &str) -> Result<bool, ProviderError> {
         self.charge_at(key, SystemTime::now()).await
     }
+
     async fn charge_at(&self, key: &str, now: SystemTime) -> Result<bool, ProviderError> {
         let id = Self::identity(key)?;
         let period = self.period(now)?;
@@ -160,11 +177,14 @@ impl UsageLedger {
         } else {
             let _ = connection.close().await;
         }
+
         result
     }
+
     pub(crate) async fn status(&self, key: &str) -> Result<ApiKeyUsage, ProviderError> {
         self.status_at(key, SystemTime::now()).await
     }
+
     async fn status_at(&self, key: &str, now: SystemTime) -> Result<ApiKeyUsage, ProviderError> {
         let id = Self::identity(key)?;
         let period = self.period(now)?;
@@ -193,6 +213,7 @@ impl UsageLedger {
             warn_at: self.config.warn_at,
         })
     }
+
     pub(crate) async fn claim_notice(
         &self,
         usage: &ApiKeyUsage,
@@ -209,6 +230,7 @@ impl UsageLedger {
                 usage.warn_at,
             )
         };
+
         let mut slot = self.connection().await?;
         let connection = slot.as_mut().expect("initialized above");
         Ok(sqlx::query(query)
@@ -222,6 +244,134 @@ impl UsageLedger {
             == 1)
     }
 }
+
 fn db_error(_: sqlx::Error) -> ProviderError {
     ProviderError::UsageAccountingUnavailable
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn config() -> ApiUsageConfig {
+        ApiUsageConfig {
+            monthly_limit: 3,
+            warn_at: 2,
+            database: ":memory:".into(),
+            ..Default::default()
+        }
+    }
+
+    fn date(year: i32, month: u8, day: u8) -> SystemTime {
+        let timestamp =
+            time::Date::from_calendar_date(year, time::Month::try_from(month).unwrap(), day)
+                .unwrap()
+                .midnight()
+                .assume_utc()
+                .unix_timestamp();
+        UNIX_EPOCH + Duration::from_secs(timestamp as u64)
+    }
+
+    #[test]
+    fn billing_periods_clamp_month_end_and_roll_back_before_boundary() {
+        let ledger = UsageLedger::new(ApiUsageConfig {
+            reset_day: 31,
+            ..config()
+        });
+        for (now, expected) in [
+            (date(2024, 3, 1), "2024-02-29"),
+            (date(2025, 3, 1), "2025-02-28"),
+            (date(2025, 1, 1), "2024-12-31"),
+            (date(2025, 4, 30), "2025-04-30"),
+            (date(2025, 3, 31), "2025-03-31"),
+        ] {
+            assert_eq!(ledger.period(now).unwrap(), expected);
+        }
+
+        assert!(ledger.period(UNIX_EPOCH - Duration::from_secs(1)).is_err());
+        assert_ne!(
+            UsageLedger::identity("first").unwrap(),
+            UsageLedger::identity("second").unwrap()
+        );
+        assert_eq!(UsageLedger::identity("first").unwrap().len(), 64);
+    }
+
+    #[tokio::test]
+    async fn ledger_charges_exactly_to_limit_and_claims_each_notice_once() {
+        let ledger = UsageLedger::new(config());
+        assert_eq!(ledger.status("key").await.unwrap().used, 0);
+        assert!(ledger.charge("key").await.unwrap());
+        let early = ledger.status("key").await.unwrap();
+        assert!(!ledger.claim_notice(&early, false).await.unwrap());
+        assert!(ledger.charge("key").await.unwrap());
+        let warning = ledger.status("key").await.unwrap();
+        assert!(ledger.claim_notice(&warning, false).await.unwrap());
+        assert!(!ledger.claim_notice(&warning, false).await.unwrap());
+        assert!(!ledger.claim_notice(&warning, true).await.unwrap());
+        assert!(ledger.charge("key").await.unwrap());
+        assert!(!ledger.charge("key").await.unwrap());
+        let exhausted = ledger.status("key").await.unwrap();
+        assert_eq!(exhausted.used, 3);
+        assert!(ledger.claim_notice(&exhausted, true).await.unwrap());
+        assert!(!ledger.claim_notice(&exhausted, true).await.unwrap());
+        assert_eq!(
+            ledger
+                .charge_first(vec!["key".into(), "fallback".into()])
+                .await
+                .unwrap(),
+            "fallback"
+        );
+        assert!(matches!(
+            ledger.charge_first(vec!["key".into()]).await,
+            Err(ProviderError::QuotaExhausted)
+        ));
+    }
+
+    #[tokio::test]
+    async fn initial_usage_is_resolved_per_identity_and_applies_only_to_configured_period() {
+        let now = date(2025, 1, 1);
+        let ledger = UsageLedger::with_credentials(
+            ApiUsageConfig {
+                initial_period: Some("2025-01-01".into()),
+                initial_used: BTreeMap::from([
+                    ("FIRST".into(), 1),
+                    ("ALIAS".into(), 2),
+                    ("MISSING".into(), 3),
+                ]),
+                ..config()
+            },
+            |name| (name != "MISSING").then(|| "shared-key".into()),
+        );
+        assert_eq!(ledger.status_at("shared-key", now).await.unwrap().used, 2);
+        assert!(ledger.charge_at("shared-key", now).await.unwrap());
+        assert!(!ledger.charge_at("shared-key", now).await.unwrap());
+        assert_eq!(
+            ledger
+                .status_at("shared-key", date(2025, 2, 1))
+                .await
+                .unwrap()
+                .used,
+            0
+        );
+        assert!(
+            ledger
+                .charge_at("shared-key", date(2025, 2, 1))
+                .await
+                .unwrap()
+        );
+        assert_eq!(ledger.status_at("other-key", now).await.unwrap().used, 0);
+    }
+
+    #[tokio::test]
+    async fn database_failure_is_sanitized_and_does_not_admit_requests() {
+        let ledger = UsageLedger::new(ApiUsageConfig {
+            database: "/nonexistent/memsi/usage.sqlite".into(),
+            ..config()
+        });
+        assert_eq!(
+            ledger.charge("secret-key").await,
+            Err(ProviderError::UsageAccountingUnavailable)
+        );
+    }
 }

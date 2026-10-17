@@ -13,16 +13,19 @@ macro_rules! number {
                     Err(DomainError::Number($message))
                 }
             }
+
             pub fn get(self) -> f64 {
                 self.0
             }
         }
+
         impl TryFrom<f64> for $name {
             type Error = DomainError;
             fn try_from(value: f64) -> Result<Self, Self::Error> {
                 Self::new(value)
             }
         }
+
         impl From<$name> for f64 {
             fn from(value: $name) -> f64 {
                 value.0
@@ -30,6 +33,7 @@ macro_rules! number {
         }
     };
 }
+
 number!(
     NonNegative,
     |v: f64| v >= 0.0,
@@ -56,12 +60,15 @@ impl TimestampMs {
             Ok(Self(value))
         }
     }
+
     pub fn from_seconds(value: i64) -> Result<Self, DomainError> {
         Self::new(value.checked_mul(1000).ok_or(DomainError::TimeOverflow)?)
     }
+
     pub fn get(self) -> i64 {
         self.0
     }
+
     pub fn checked_add(self, millis: i64) -> Result<Self, DomainError> {
         Self::new(
             self.0
@@ -69,6 +76,7 @@ impl TimestampMs {
                 .ok_or(DomainError::TimeOverflow)?,
         )
     }
+
     pub fn closed_cutoff(self, resolution: Resolution, grace_ms: u64) -> Result<Self, DomainError> {
         let grace = i64::try_from(grace_ms).map_err(|_| DomainError::TimeOverflow)?;
         let time = self
@@ -79,17 +87,20 @@ impl TimestampMs {
         Self::new(time / resolution.millis() * resolution.millis())
     }
 }
+
 impl TryFrom<i64> for TimestampMs {
     type Error = DomainError;
     fn try_from(v: i64) -> Result<Self, Self::Error> {
         Self::new(v)
     }
 }
+
 impl From<TimestampMs> for i64 {
     fn from(v: TimestampMs) -> Self {
         v.0
     }
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "u64", into = "u64")]
 pub struct Resolution(u64);
@@ -101,24 +112,29 @@ impl Resolution {
             Ok(Self(seconds))
         }
     }
+
     pub fn seconds(self) -> u64 {
         self.0
     }
+
     pub fn millis(self) -> i64 {
         (self.0 * 1000) as i64
     }
 }
+
 impl TryFrom<u64> for Resolution {
     type Error = DomainError;
     fn try_from(v: u64) -> Result<Self, Self::Error> {
         Self::new(v)
     }
 }
+
 impl From<Resolution> for u64 {
     fn from(v: Resolution) -> Self {
         v.0
     }
 }
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MissingReason {
@@ -127,21 +143,25 @@ pub enum MissingReason {
     Stale,
     IncompleteCoverage,
 }
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum Knowledge<T> {
     Known { value: T },
     Unknown { reason: MissingReason },
 }
+
 impl<T> Knowledge<T> {
     pub fn known(value: T) -> Self {
         Self::Known { value }
     }
+
     pub fn unknown() -> Self {
         Self::Unknown {
             reason: MissingReason::NotProvided,
         }
     }
+
     pub fn as_ref(&self) -> Option<&T> {
         match self {
             Self::Known { value } => Some(value),

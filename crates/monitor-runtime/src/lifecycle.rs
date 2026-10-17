@@ -11,6 +11,7 @@ impl Monitor<'_> {
         if !(1..=100).contains(&max_cycles) {
             return Err(StateError::InvalidRequest);
         }
+
         let result = AssertUnwindSafe(async {
             let mut completed = 0;
             while completed < usize::from(max_cycles) && !cancellation.is_cancelled() {
@@ -21,6 +22,7 @@ impl Monitor<'_> {
                     idle(cancellation, 1000).await;
                 }
             }
+
             Ok(completed)
         })
         .catch_unwind()
@@ -52,6 +54,7 @@ impl Monitor<'_> {
                     on_cycle(&report);
                     idle(cancellation, 1000).await;
                 }
+
                 Ok(())
             })
             .catch_unwind()
@@ -60,6 +63,7 @@ impl Monitor<'_> {
             cancellation.cancel();
             result
         };
+
         let delivery = async {
             let result = AssertUnwindSafe(async {
                 while !cancellation.is_cancelled() {
@@ -79,6 +83,7 @@ impl Monitor<'_> {
                         tokio::task::yield_now().await;
                     }
                 }
+
                 Ok(())
             })
             .catch_unwind()

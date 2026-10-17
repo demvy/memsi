@@ -7,6 +7,7 @@ pub enum Profile {
     Medium,
     High,
 }
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct StrategyConfig {
@@ -31,6 +32,7 @@ pub struct StrategyConfig {
     #[serde(default)]
     pub protocols: Vec<ProtocolId>,
 }
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ThresholdOverrides {
@@ -43,6 +45,7 @@ pub struct ThresholdOverrides {
     pub activity: Option<f64>,
     pub relative_volume: Option<f64>,
 }
+
 impl ThresholdOverrides {
     pub fn apply(&self, mut base: Thresholds) -> Thresholds {
         macro_rules! apply {
@@ -50,6 +53,7 @@ impl ThresholdOverrides {
                 $(if let Some(value) = self.$field { base.$field = value; })*
             };
         }
+
         apply!(
             liquidity_usd,
             volume_24h_usd,
@@ -63,6 +67,7 @@ impl ThresholdOverrides {
         base
     }
 }
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ResearchPolicy {
@@ -70,6 +75,7 @@ pub struct ResearchPolicy {
     pub max_position_pct: f64,
     pub allowed_chains: Vec<ChainId>,
 }
+
 impl Default for ResearchPolicy {
     fn default() -> Self {
         Self {
@@ -79,6 +85,7 @@ impl Default for ResearchPolicy {
         }
     }
 }
+
 impl Thresholds {
     pub fn validate(&self) -> Result<(), strategy_api::StrategyError> {
         if [
@@ -98,9 +105,11 @@ impl Thresholds {
         {
             return Err(strategy_api::StrategyError::InvalidResult);
         }
+
         Ok(())
     }
 }
+
 impl ResearchPolicy {
     pub fn validate(&self) -> Result<(), strategy_api::StrategyError> {
         if !self.min_position_pct.is_finite()
@@ -114,9 +123,11 @@ impl ResearchPolicy {
         {
             return Err(strategy_api::StrategyError::InvalidResult);
         }
+
         Ok(())
     }
 }
+
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct Thresholds {
     pub liquidity_usd: f64,
@@ -128,6 +139,7 @@ pub struct Thresholds {
     pub activity: f64,
     pub relative_volume: f64,
 }
+
 impl Profile {
     pub fn plugin_id(self) -> &'static str {
         match self {
@@ -136,6 +148,7 @@ impl Profile {
             Self::High => "strategy.range-high-risk",
         }
     }
+
     pub fn thresholds(self) -> Thresholds {
         match self {
             Self::Low => Thresholds {
@@ -171,6 +184,7 @@ impl Profile {
         }
     }
 }
+
 /// Explicit versioned opt-in; observational by default, with no hidden new filter.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -181,9 +195,11 @@ pub struct TrendBinding {
     #[serde(default)]
     pub reject_downtrend: bool,
 }
+
 fn metrics_age() -> u64 {
     60
 }
+
 fn default_metrics_age(value: &u64) -> bool {
     *value == 60
 }

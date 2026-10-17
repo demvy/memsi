@@ -9,6 +9,7 @@ pub struct PumpSignal {
     pub context_bars: usize,
     pub min_gain_pct: f64,
 }
+
 impl Default for PumpSignal {
     fn default() -> Self {
         Self {
@@ -17,6 +18,7 @@ impl Default for PumpSignal {
         }
     }
 }
+
 impl PumpSignal {
     pub fn validate(&self) -> Result<(), StrategyError> {
         if !(20..=120).contains(&self.context_bars)
@@ -25,11 +27,14 @@ impl PumpSignal {
         {
             return Err(StrategyError::InvalidResult);
         }
+
         Ok(())
     }
+
     pub fn required_bars(&self) -> usize {
         6
     }
+
     pub fn evaluate(
         &self,
         series: Option<&CandleSeries>,
@@ -40,6 +45,7 @@ impl PumpSignal {
         let Some(series) = series else {
             return result(Verdict::Unavailable, "PUMP_CANDLES_MISSING", None);
         };
+
         if self.validate().is_err()
             || series.validate(self.required_bars()).is_err()
             || &series.pool != pool
@@ -52,8 +58,10 @@ impl PumpSignal {
         {
             return result(Verdict::Unavailable, "PUMP_CANDLES_INVALID", None);
         }
+
         self.evaluate_bars(&series.candles, series.end_exclusive)
     }
+
     fn evaluate_bars(
         &self,
         candles: &[Candle],
@@ -62,6 +70,7 @@ impl PumpSignal {
         let Some(start) = candles.len().checked_sub(self.required_bars()) else {
             return result(Verdict::Unavailable, "PUMP_CANDLES_MISSING", None);
         };
+
         let bars = &candles[start..];
         let last = &bars[5];
         let gain = (last.close.get() / bars[0].close.get() - 1.0) * 100.0;
@@ -73,6 +82,7 @@ impl PumpSignal {
                 Some(format!("gain_pct={gain}")),
             );
         }
+
         if !gain.is_finite() || gain <= self.min_gain_pct {
             return result(
                 Verdict::Watch,
@@ -80,12 +90,14 @@ impl PumpSignal {
                 Some(format!("gain_pct={gain}")),
             );
         }
+
         let volume = bars[1..]
             .iter()
             .try_fold(0.0, |sum, bar| bar.volume.as_ref().map(|v| sum + v.get()));
         if volume.is_none_or(|v| !v.is_finite() || v <= 0.0) {
             return result(Verdict::Unavailable, "PUMP_VOLUME_MISSING", None);
         }
+
         result(
             Verdict::Match,
             "PUMP_HIGH",
@@ -93,6 +105,7 @@ impl PumpSignal {
         )
     }
 }
+
 fn result(verdict: Verdict, code: &str, actual: Option<String>) -> (Verdict, Vec<DecisionReason>) {
     (verdict, vec![DecisionReason { code: code.into(), field: "signal.pump".into(), actual, expected: "five-minute gain above min_gain_pct, rising latest closed candle, known positive volume; token filters must also pass".into() }])
 }
@@ -118,6 +131,7 @@ mod tests {
             })
             .collect()
     }
+
     #[test]
     fn detects_latest_five_minutes_in_full_twenty_bar_history() {
         let mut prices = vec![100.0; 15];
@@ -127,6 +141,7 @@ mod tests {
         assert_eq!(decision.0, Verdict::Match);
         assert_eq!(decision.1[0].code, "PUMP_HIGH");
     }
+
     #[test]
     fn rejects_current_dump_even_with_positive_five_minute_return() {
         assert_eq!(
@@ -140,12 +155,14 @@ mod tests {
             "PUMP_NOT_RISING"
         );
     }
+
     #[test]
     fn threshold_is_strict() {
         let config = PumpSignal {
             min_gain_pct: 25.0,
             ..Default::default()
         };
+
         assert_eq!(
             config
                 .evaluate_bars(
@@ -156,6 +173,7 @@ mod tests {
             Verdict::Watch
         );
     }
+
     #[test]
     fn missing_volume_is_unavailable() {
         let mut bars = candles(&[100.0, 105.0, 110.0, 115.0, 120.0, 125.0]);

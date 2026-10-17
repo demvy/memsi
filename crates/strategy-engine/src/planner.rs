@@ -13,6 +13,7 @@ pub enum PlanError {
     #[error("incompatible candle requirements")]
     Candles,
 }
+
 #[derive(Clone)]
 pub struct StrategyPlan<'a> {
     pub strategy: &'a dyn Strategy,
@@ -21,6 +22,7 @@ pub struct StrategyPlan<'a> {
     pub trend: Option<&'a dyn Analyzer>,
     pub candles: CandleRequirement,
 }
+
 /// Validate bindings before any market-data request or task starts.
 pub fn plan<'a>(
     strategy: &'a dyn Strategy,
@@ -44,6 +46,7 @@ pub fn plan<'a>(
     {
         return Err(PlanError::Bindings(strategy.instance().clone()));
     }
+
     let find = |name: &str, schema: &str| -> Result<&'a dyn Analyzer, PlanError> {
         let binding = requirements
             .analyses
@@ -56,6 +59,7 @@ pub fn plan<'a>(
         {
             return Err(PlanError::Bindings(strategy.instance().clone()));
         }
+
         let analyzer = analyzers
             .get(&binding.instance)
             .ok_or_else(|| PlanError::Analyzer(binding.instance.clone()))?;
@@ -67,8 +71,10 @@ pub fn plan<'a>(
         {
             return Err(PlanError::Analyzer(binding.instance.clone()));
         }
+
         Ok(analyzer.as_ref())
     };
+
     let range = Some(find("range", "analysis.range")?);
     let volume = Some(find("volume", "analysis.volume")?);
     let trend = if requirements
@@ -80,6 +86,7 @@ pub fn plan<'a>(
     } else {
         None
     };
+
     let mut candles = requirements.candles;
     validate_candles(&candles)?;
     let trend_required = requirements
@@ -92,18 +99,22 @@ pub fn plan<'a>(
         if !required.dependencies.is_empty() {
             return Err(PlanError::NestedDependencies);
         }
+
         validate_candles(&required.candles)?;
         if required.candles.resolution != candles.resolution
             || required.candles.price_unit != candles.price_unit
         {
             return Err(PlanError::Candles);
         }
+
         if mandatory {
             candles.min_bars = candles.min_bars.max(required.candles.min_bars);
             candles.require_volume |= required.candles.require_volume;
         }
+
         candles.desired_bars = candles.desired_bars.max(required.candles.desired_bars);
     }
+
     Ok(StrategyPlan {
         strategy,
         range,
@@ -112,6 +123,7 @@ pub fn plan<'a>(
         candles,
     })
 }
+
 fn validate_candles(candles: &CandleRequirement) -> Result<(), PlanError> {
     if candles.min_bars == 0
         || candles.min_bars > candles.desired_bars
@@ -120,13 +132,16 @@ fn validate_candles(candles: &CandleRequirement) -> Result<(), PlanError> {
     {
         return Err(PlanError::Candles);
     }
+
     Ok(())
 }
+
 pub fn union_windows(plans: &[StrategyPlan<'_>]) -> BTreeMap<Resolution, usize> {
     let mut windows = BTreeMap::new();
     for plan in plans {
         let window = windows.entry(plan.candles.resolution).or_insert(0);
         *window = (*window).max(plan.candles.desired_bars);
     }
+
     windows
 }

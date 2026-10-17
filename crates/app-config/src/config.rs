@@ -9,6 +9,7 @@ pub enum AppMode {
     Paper,
     Live,
 }
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
@@ -17,6 +18,7 @@ pub enum InstanceMode {
     Active,
     Shadow,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PluginInstance {
@@ -32,15 +34,19 @@ pub struct PluginInstance {
     #[serde(default)]
     pub config: toml::Table,
 }
+
 fn is_true(value: &bool) -> bool {
     *value
 }
+
 fn is_zero(value: &u64) -> bool {
     *value == 0
 }
+
 fn enabled() -> bool {
     true
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MonitorConfig {
@@ -55,6 +61,7 @@ pub struct MonitorConfig {
     pub max_candidates: usize,
     pub close_grace_ms: u64,
 }
+
 impl Default for MonitorConfig {
     fn default() -> Self {
         Self {
@@ -69,6 +76,7 @@ impl Default for MonitorConfig {
         }
     }
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppConfig {
@@ -84,6 +92,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub notifications: Vec<PluginInstance>,
 }
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("cannot read configuration file")]
@@ -95,16 +104,19 @@ pub enum ConfigError {
     #[error("unknown environment override: {0}")]
     UnknownOverride(String),
 }
+
 impl AppConfig {
     pub fn parse(input: &str) -> Result<Self, ConfigError> {
         let config: Self = toml::from_str(input).map_err(|_| ConfigError::Parse)?;
         config.validate()?;
         Ok(config)
     }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.schema_version != 1 {
             return Err(ConfigError::Validation("unsupported schema_version".into()));
         }
+
         self.chain
             .validate()
             .map_err(|_| ConfigError::Validation("chain identity".into()))?;
@@ -125,6 +137,7 @@ impl AppConfig {
         {
             return Err(ConfigError::Validation("monitor resource bounds".into()));
         }
+
         let mut ids = BTreeSet::new();
         for p in self.instances() {
             if !ids.insert(&p.id) {
@@ -134,14 +147,17 @@ impl AppConfig {
                 )));
             }
         }
+
         Ok(())
     }
+
     pub fn instances(&self) -> impl Iterator<Item = &PluginInstance> {
         self.plugins
             .iter()
             .chain(&self.strategies)
             .chain(&self.notifications)
     }
+
     pub fn digest(&self) -> ContentHash {
         ContentHash::of(self).expect("validated config serializable")
     }
