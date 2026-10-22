@@ -1,0 +1,17 @@
+[package]
+"name" = "notification-api"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"signal-api" = { "path" = "../signal-api" }
+"provider-api" = { "path" = "../provider-api" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"thiserror" = "2"
+"async-trait" = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }

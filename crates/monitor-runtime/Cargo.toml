@@ -1,0 +1,30 @@
+[package]
+"name" = "monitor-runtime"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"thiserror" = "2"
+"domain" = { "path" = "../domain" }
+"app-config" = { "path" = "../app-config" }
+"app-services" = { "path" = "../app-services" }
+"analysis-api" = { "path" = "../analysis-api" }
+"strategy-api" = { "path" = "../strategy-api" }
+"discovery-api" = { "path" = "../discovery-api" }
+"provider-api" = { "path" = "../provider-api" }
+"state-api" = { "path" = "../state-api" }
+"signal-service" = { "path" = "../signal-service" }
+"futures" = "0.3"
+"serde" = { "version" = "1", "features" = ["derive"] }
+"tokio" = { "version" = "1", "features" = ["time", "rt", "sync"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }
+async-trait = "0.1"
+state-memory = { path = "../state-memory" }
+strategy-range = { path = "../strategy-range" }
+analyzer-range = { path = "../analyzer-range" }
+analyzer-volume = { path = "../analyzer-volume" }
+tokio = { version = "1", features = ["rt", "macros"] }

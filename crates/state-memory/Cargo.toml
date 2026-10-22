@@ -1,0 +1,20 @@
+[package]
+"name" = "state-memory"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"state-api" = { "path" = "../state-api" }
+"signal-api" = { "path" = "../signal-api" }
+"notification-api" = { "path" = "../notification-api" }
+"async-trait" = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+
+[[test]]
+name = "repository"
+path = "tests/repository.rs"

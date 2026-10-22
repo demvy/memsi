@@ -1,0 +1,11 @@
+[package]
+"name" = "plugin-api"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"thiserror" = "2"

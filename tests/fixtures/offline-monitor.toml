@@ -1,0 +1,32 @@
+schema_version = 1
+mode = "observe"
+
+[chain]
+family = "evm"
+chain_id = 1
+
+[monitor]
+max_candidates = 1
+
+[[plugins]]
+id = "codex"
+plugin = "provider.codex"
+[plugins.config]
+api_key = "env:MEMSI_TEST_EMPTY_API_KEY"
+network_id = 1
+
+[[plugins]]
+id = "range"
+plugin = "analyzer.range"
+
+[[plugins]]
+id = "volume"
+plugin = "analyzer.volume"
+
+[[strategies]]
+id = "high"
+plugin = "strategy.range-high-risk"
+[strategies.config]
+range_analyzer = "range"
+volume_analyzer = "volume"
+research_only = true

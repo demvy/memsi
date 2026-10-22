@@ -1,0 +1,19 @@
+[package]
+"name" = "notification-console"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"plugin-api" = { "path" = "../plugin-api" }
+"provider-api" = { "path" = "../provider-api" }
+"notification-api" = { "path" = "../notification-api" }
+"notification-render" = { "path" = "../notification-render" }
+"async-trait" = "0.1"
+"serde" = { "version" = "1", "features" = ["derive"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }
+tokio = { version = "1", features = ["rt", "macros"] }

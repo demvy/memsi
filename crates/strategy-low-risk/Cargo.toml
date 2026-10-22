@@ -1,0 +1,15 @@
+[package]
+"name" = "strategy-low-risk"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"strategy-range" = { "path" = "../strategy-range" }
+"strategy-api" = { "path" = "../strategy-api" }
+"plugin-api" = { "path" = "../plugin-api" }
+"domain" = { "path" = "../domain" }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

@@ -1,0 +1,22 @@
+[package]
+"name" = "signal-service"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"futures" = "0.3"
+"domain" = { "path" = "../domain" }
+"state-api" = { "path" = "../state-api" }
+"signal-api" = { "path" = "../signal-api" }
+"strategy-api" = { "path" = "../strategy-api" }
+"notification-api" = { "path" = "../notification-api" }
+"provider-api" = { "path" = "../provider-api" }
+"tokio" = { "version" = "1", "features" = ["time"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }
+async-trait = "0.1"
+state-memory = { path = "../state-memory" }
+tokio = { version = "1", features = ["rt", "macros"] }

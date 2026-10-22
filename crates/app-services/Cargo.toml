@@ -1,0 +1,23 @@
+[package]
+"name" = "app-services"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"provider-api" = { "path" = "../provider-api" }
+"analysis-api" = { "path" = "../analysis-api" }
+"data-hub" = { "path" = "../data-hub" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"strategy-api" = { "path" = "../strategy-api" }
+"strategy-engine" = { "path" = "../strategy-engine" }
+"futures" = "0.3"
+"tokio" = { "version" = "1", "features" = ["time", "macros"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }
+strategy-range = { path = "../strategy-range" }
+tokio = { version = "1", features = ["rt", "macros"] }
+analyzer-volume = { path = "../analyzer-volume" }

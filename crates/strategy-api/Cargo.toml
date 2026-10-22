@@ -1,0 +1,14 @@
+[package]
+"name" = "strategy-api"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"analysis-api" = { "path" = "../analysis-api" }
+"analysis-model" = { "path" = "../analysis-model" }
+"plugin-api" = { "path" = "../plugin-api" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"thiserror" = "2"

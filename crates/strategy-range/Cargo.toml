@@ -1,0 +1,17 @@
+[package]
+"name" = "strategy-range"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"strategy-api" = { "path" = "../strategy-api" }
+"analysis-api" = { "path" = "../analysis-api" }
+"analysis-model" = { "path" = "../analysis-model" }
+"plugin-api" = { "path" = "../plugin-api" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

@@ -1,0 +1,25 @@
+[package]
+"name" = "strategy-engine"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"strategy-api" = { "path" = "../strategy-api" }
+"analysis-api" = { "path" = "../analysis-api" }
+"analysis-model" = { "path" = "../analysis-model" }
+"data-hub" = { "path" = "../data-hub" }
+"provider-api" = { "path" = "../provider-api" }
+"serde" = { "version" = "1", "features" = ["derive"] }
+"thiserror" = "2"
+"futures" = "0.3"
+"tokio" = { "version" = "1", "features" = ["time"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }
+strategy-range = { path = "../strategy-range" }
+analyzer-range = { path = "../analyzer-range" }
+analyzer-volume = { path = "../analyzer-volume" }
+tokio = { version = "1", features = ["rt", "macros"] }

@@ -1,0 +1,14 @@
+[package]
+"name" = "notification-render"
+"version" = "0.1.0"
+"edition" = "2024"
+"autotests" = false
+"autobenches" = false
+
+[dependencies]
+"domain" = { "path" = "../domain" }
+"notification-api" = { "path" = "../notification-api" }
+"signal-api" = { "path" = "../signal-api" }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }
