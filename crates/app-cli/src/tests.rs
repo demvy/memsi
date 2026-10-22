@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn error_json_is_parsed_as_a_global_option() {
+    for arguments in [
+        vec!["memes_finder", "--error-json", "plugins"],
+        vec!["memes_finder", "plugins", "--error-json"],
+    ] {
+        assert!(Cli::try_parse_from(arguments).unwrap().error_json);
+    }
+
+    assert!(
+        !Cli::try_parse_from(["memes_finder", "plugins"])
+            .unwrap()
+            .error_json
+    );
+}
+
+#[test]
 fn command_parser_accepts_offline_commands_and_validates_networks() {
     for arguments in [
         vec!["memes_finder", "plugins", "--envelope"],
@@ -38,5 +54,5 @@ fn market_argument_defaults_and_request_context_are_valid() {
         app_config::AppConfig::parse(include_str!("../../app-config/src/research-preset.toml"))
             .unwrap();
     assert!(live::context(&config).check().is_ok());
-    assert!(live::runtime().is_ok());
+    assert!(runtime().is_ok());
 }

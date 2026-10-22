@@ -9,7 +9,7 @@ impl Monitor<'_> {
         >,
         cancellation: &Cancellation,
         report: &mut CycleReport,
-    ) -> Result<(), StateError> {
+    ) -> Result<(), MonitorError> {
         report.evaluated += 1;
         let mut next_check_secs = 60;
         let mut panicked = false;
@@ -46,32 +46,6 @@ impl Monitor<'_> {
                         )
                     })
                 });
-                let mut completed = std::collections::BTreeSet::new();
-                for item in &evaluation.strategies {
-                    if let Some(decision) = &item.decision {
-                        if completed.insert(decision.evidence.snapshot_hash.clone()) {
-                            self.emit(
-                                LifecycleEvent::AnalysisCompleted {
-                                    snapshot: decision.evidence.snapshot_hash.clone(),
-                                },
-                                evaluation.as_of,
-                                report,
-                            );
-                        }
-
-                        if decision.verdict == strategy_api::Verdict::Match {
-                            self.emit(
-                                LifecycleEvent::StrategyMatched {
-                                    instance: decision.instance.clone(),
-                                    token: decision.token.clone(),
-                                },
-                                decision.as_of,
-                                report,
-                            );
-                        }
-                    }
-                }
-
                 panicked = evaluation.strategies.iter().any(|item| {
                     item.trace.iter().any(|probe| {
                         probe.reason == provider_api::ProviderError::WorkerPanicked.to_string()
@@ -108,54 +82,15 @@ impl Monitor<'_> {
                     .min()
                     .unwrap_or(60)
                     .clamp(10, 3600);
-                for item in evaluation.strategies {
-                    let logging = self.dependencies.config.strategy_logging(&item.instance);
-                    if let Some(error) = item.unavailable {
-                        report.candidate_error(logging, error);
-                    }
-
-                    if self.dependencies.config.mode != AppMode::Signal
-                        || cancellation.is_cancelled()
-                    {
-                        continue;
-                    }
-
-                    if let Some(mut decision) = item.decision {
-                        if !decision
-                            .warnings
-                            .iter()
-                            .any(|warning| warning == "PartialDiscoveryCoverage")
-                        {
-                            decision.warnings.push("PartialDiscoveryCoverage".into());
-                        }
-
-                        let accepted_at = self.dependencies.clock.now()?;
-                        match signal_service::accept(
-                            self.dependencies.state,
-                            &decision,
-                            candidate.symbol.as_deref(),
-                            self.dependencies.targets,
-                            accepted_at,
-                        )
-                        .await
-                        {
-                            Ok(Acceptance::Accepted(signal)) => {
-                                report.accepted += 1;
-                                self.emit(
-                                    LifecycleEvent::SignalAccepted { signal },
-                                    accepted_at,
-                                    report,
-                                );
-                            }
-
-                            Ok(Acceptance::Suppressed) => report.suppressed += 1,
-                            Err(error) => report.candidate_error(logging, error.to_string()),
-                        }
-                    }
-                }
+                self.accept_evaluation(evaluation, &candidate, cancellation, report)
+                    .await?;
             }
 
             Ok(Err(error)) => {
+                if fatal_provider_error(&error) {
+                    return Err(error.into());
+                }
+
                 if any_logging && let Some(diagnostics) = &self.diagnostics {
                     diagnostics.failure(&candidate, &error.to_string());
                 }
@@ -174,28 +109,7 @@ impl Monitor<'_> {
         }
 
         if self.screened_watchlist() {
-            if !admitted_watch {
-                self.watch.remove(&candidate.token);
-                report.dropped += 1;
-            } else if !self.watch.contains_key(&candidate.token) {
-                let capacity = self.dependencies.config.monitor.queue_capacity.min(1000);
-                if self.watch.len() < capacity {
-                    self.sequence = self.sequence.checked_add(1).ok_or(StateError::Capacity)?;
-                    self.watch.insert(
-                        candidate.token.clone(),
-                        WatchRecord {
-                            candidate: candidate.clone(),
-                            next_due: self.dependencies.clock.now()?,
-                            last_seen: self.dependencies.clock.now()?,
-                            order: self.sequence,
-                        },
-                    );
-                } else {
-                    report.dropped += 1;
-                }
-            } else if let Some(entry) = self.watch.get_mut(&candidate.token) {
-                entry.candidate = candidate.clone();
-            }
+            self.update_screened_watch(&candidate, admitted_watch, report)?;
         }
 
         if panicked {
@@ -216,10 +130,6 @@ impl Monitor<'_> {
         }
 
         if self.screened_watchlist() {
-            if let Some(entry) = self.watch.get_mut(&candidate.token) {
-                entry.next_due = self.next_discovery;
-            }
-
             return Ok(());
         }
 
@@ -242,6 +152,91 @@ impl Monitor<'_> {
                 } else {
                     entry.next_due.max(closed)
                 };
+            }
+        }
+
+        Ok(())
+    }
+
+    fn update_screened_watch(
+        &mut self,
+        candidate: &Candidate,
+        admitted: bool,
+        report: &mut CycleReport,
+    ) -> Result<(), StateError> {
+        if !admitted {
+            self.watch.remove(&candidate.token);
+            report.dropped += 1;
+            return Ok(());
+        }
+
+        if let Some(entry) = self.watch.get_mut(&candidate.token) {
+            entry.candidate = candidate.clone();
+            entry.next_due = self.next_discovery;
+            return Ok(());
+        }
+
+        let capacity = self.dependencies.config.monitor.queue_capacity.min(1000);
+        if self.watch.len() >= capacity {
+            report.dropped += 1;
+            return Ok(());
+        }
+
+        self.sequence = self.sequence.checked_add(1).ok_or(StateError::Capacity)?;
+        self.watch.insert(
+            candidate.token.clone(),
+            WatchRecord {
+                candidate: candidate.clone(),
+                next_due: self.next_discovery,
+                last_seen: self.dependencies.clock.now()?,
+                order: self.sequence,
+            },
+        );
+
+        Ok(())
+    }
+
+    async fn accept_evaluation(
+        &self,
+        evaluation: app_services::EvaluationReport,
+        candidate: &Candidate,
+        cancellation: &Cancellation,
+        report: &mut CycleReport,
+    ) -> Result<(), StateError> {
+        for item in evaluation.strategies {
+            let logging = self.dependencies.config.strategy_logging(&item.instance);
+            if let Some(error) = item.unavailable {
+                report.candidate_error(logging, error);
+            }
+
+            if self.dependencies.config.mode != AppMode::Signal || cancellation.is_cancelled() {
+                continue;
+            }
+
+            if let Some(mut decision) = item.decision {
+                if !decision
+                    .warnings
+                    .iter()
+                    .any(|warning| warning == "PartialDiscoveryCoverage")
+                {
+                    decision.warnings.push("PartialDiscoveryCoverage".into());
+                }
+
+                let accepted_at = self.dependencies.clock.now()?;
+                match signal_service::accept(
+                    self.dependencies.state,
+                    &decision,
+                    candidate.symbol.as_deref(),
+                    self.dependencies.targets,
+                    accepted_at,
+                )
+                .await
+                {
+                    Ok(Acceptance::Accepted(_)) => report.accepted += 1,
+
+                    Ok(Acceptance::Suppressed) => report.suppressed += 1,
+                    Err(error) => report.candidate_error(logging, error.to_string()),
+                }
             }
         }
 

@@ -120,24 +120,6 @@ pub struct RobustVolumeAnalysis {
     pub state: ActivityState,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ArtifactProvenance {
-    pub schema: SchemaId,
-    pub schema_major: u16,
-    pub producer: PluginId,
-    pub producer_version: String,
-    pub analyzer_instance: InstanceId,
-    pub config_digest: ContentHash,
-    pub input_hash: ContentHash,
-    pub as_of: TimestampMs,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Artifact<T> {
-    pub provenance: ArtifactProvenance,
-    pub value: T,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrendDirection {

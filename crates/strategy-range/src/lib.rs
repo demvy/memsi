@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+use analysis_api::identifiers;
 mod config;
 mod filters;
 mod pump;
@@ -90,7 +91,7 @@ impl RangeStrategy {
             name: BindingId::new(name).unwrap(),
             instance: instance.clone(),
             schema: SchemaId::new(schema).unwrap(),
-            major: 1,
+            major: identifiers::SCHEMA_MAJOR,
             required: true,
         }
     }
@@ -132,11 +133,23 @@ impl Strategy for RangeStrategy {
     fn requirements(&self) -> StrategyRequirements {
         let thresholds = self.thresholds;
         let mut analyses = vec![
-            Self::binding("range", &self.config.range_analyzer, "analysis.range"),
-            Self::binding("volume", &self.config.volume_analyzer, "analysis.volume"),
+            Self::binding(
+                identifiers::RANGE_BINDING,
+                &self.config.range_analyzer,
+                identifiers::RANGE_SCHEMA,
+            ),
+            Self::binding(
+                identifiers::VOLUME_BINDING,
+                &self.config.volume_analyzer,
+                identifiers::VOLUME_SCHEMA,
+            ),
         ];
         if let Some(trend) = &self.config.trend {
-            let mut binding = Self::binding("trend", &trend.analyzer, "analysis.trend");
+            let mut binding = Self::binding(
+                identifiers::TREND_BINDING,
+                &trend.analyzer,
+                identifiers::TREND_SCHEMA,
+            );
             binding.required = trend.required;
             analyses.push(binding);
         }
@@ -198,7 +211,6 @@ impl Strategy for RangeStrategy {
     fn token_filter_recheck_secs(&self) -> u64 {
         match self.profile {
             Profile::High => 900,
-            Profile::Medium => 1200,
             Profile::Low => 1800,
         }
     }
@@ -233,9 +245,6 @@ impl Strategy for RangeStrategy {
             (Profile::Low, Verdict::Reject) => 1800,
             (Profile::Low, Verdict::Watch) => 120,
             (Profile::Low, Verdict::Match) => 300,
-            (Profile::Medium, Verdict::Reject) => 1200,
-            (Profile::Medium, Verdict::Watch) => 120,
-            (Profile::Medium, Verdict::Match) => 300,
             (Profile::High, Verdict::Reject) => 900,
             (Profile::High, Verdict::Watch) => 60,
             (Profile::High, Verdict::Match) => 120,

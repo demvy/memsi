@@ -6,7 +6,6 @@
 "autobenches" = false
 
 [dependencies]
-"async-trait" = "0.1"
 "domain" = { "path" = "../domain" }
 "provider-api" = { "path" = "../provider-api" }
 "analysis-api" = { "path" = "../analysis-api" }
@@ -18,7 +17,7 @@
 "tokio" = { "version" = "1", "features" = ["time", "macros"] }
 
 [dev-dependencies]
+test-support = { path = "../../test-support" }
 strategy-range = { path = "../strategy-range" }
 tokio = { version = "1", features = ["rt", "macros"] }
-plugin-api = { path = "../plugin-api" }
 analyzer-volume = { path = "../analyzer-volume" }

@@ -9,7 +9,6 @@ use signal_api::{Signal, SignalDraft};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Durability {
     Volatile,
-    Durable,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -47,8 +46,6 @@ pub enum DeliveryStatus {
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum StateError {
-    #[error("unsupported or inconsistent state schema")]
-    SchemaMismatch,
     #[error("state conflict")]
     Conflict,
     #[error("capacity exceeded")]
@@ -131,30 +128,81 @@ pub fn validate_acceptance(
     now: TimestampMs,
 ) -> Result<(), StateError> {
     let signal = &draft.signal;
-    if signal.created_at > now
-        || signal.expires_at <= now
-        || signal.pool.chain() != signal.token.chain()
-        || draft.cooldown_secs > 604_800
-        || targets.is_empty()
-        || targets.len() > 16
-        || signal.facts.len() > 32
-        || signal.warnings.len() > 32
-        || signal.reasons.len() > 32
-    {
+
+    if signal.created_at > now {
+        tracing::warn!("invalid signal acceptance: signal creation time is in the future");
         return Err(StateError::InvalidRequest);
     }
 
-    let payload = serde_json::to_vec(signal).map_err(|_| StateError::InvalidRequest)?;
+    if signal.expires_at <= now {
+        tracing::warn!("invalid signal acceptance: signal has expired");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if signal.pool.chain() != signal.token.chain() {
+        tracing::warn!("invalid signal acceptance: pool chain differs from token chain");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if draft.cooldown_secs > 604_800 {
+        tracing::warn!("invalid signal acceptance: cooldown exceeds 604800 seconds");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if targets.is_empty() {
+        tracing::warn!("invalid signal acceptance: delivery targets are empty");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if targets.len() > 16 {
+        tracing::warn!("invalid signal acceptance: delivery targets exceed 16 entries");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if signal.facts.len() > 32 {
+        tracing::warn!("invalid signal acceptance: signal facts exceed 32 entries");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if signal.warnings.len() > 32 {
+        tracing::warn!("invalid signal acceptance: signal warnings exceed 32 entries");
+        return Err(StateError::InvalidRequest);
+    }
+
+    if signal.reasons.len() > 32 {
+        tracing::warn!("invalid signal acceptance: signal reasons exceed 32 entries");
+        return Err(StateError::InvalidRequest);
+    }
+
+    let payload = serde_json::to_vec(signal).map_err(|_| {
+        tracing::warn!("invalid signal acceptance: serialization failed");
+        StateError::InvalidRequest
+    })?;
+
     if payload.len() > 16_384 {
+        tracing::warn!("invalid signal acceptance: serialized signal exceeds 16384 bytes");
         return Err(StateError::InvalidRequest);
     }
 
     let mut unique = std::collections::BTreeSet::new();
-    for target in targets {
-        if target.destination.is_empty()
-            || target.destination.len() > 256
-            || !unique.insert((&target.sink, &target.destination))
-        {
+
+    for (index, target) in targets.iter().enumerate() {
+        if target.destination.is_empty() {
+            tracing::warn!("invalid signal acceptance: target[{index}] destination is empty");
+            return Err(StateError::InvalidRequest);
+        }
+
+        if target.destination.len() > 256 {
+            tracing::warn!(
+                "invalid signal acceptance: target[{index}] destination exceeds 256 bytes"
+            );
+            return Err(StateError::InvalidRequest);
+        }
+
+        if !unique.insert((&target.sink, &target.destination)) {
+            tracing::warn!(
+                "invalid signal acceptance: target[{index}] duplicate sink and destination"
+            );
             return Err(StateError::InvalidRequest);
         }
     }

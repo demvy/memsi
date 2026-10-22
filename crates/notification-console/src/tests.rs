@@ -1,8 +1,7 @@
 use super::*;
 use provider_api::{Cancellation, RequestContext, RequestPriority};
 use std::time::{Duration, Instant};
-#[path = "../../../test-support/signal.rs"]
-mod fixtures;
+use test_support::signal as fixtures;
 
 #[tokio::test]
 async fn console_sink_preserves_identity_and_validates_destination_and_cancellation() {

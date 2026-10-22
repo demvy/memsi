@@ -1,18 +1,9 @@
 #![forbid(unsafe_code)]
-#[cfg(feature = "monitor")]
-mod discovery_logging;
 #[cfg(feature = "codex")]
 mod live;
+mod logging;
 #[cfg(feature = "monitor")]
 mod monitor;
-#[cfg(feature = "monitor")]
-mod quota;
-#[cfg(feature = "monitor")]
-mod request_logging;
-#[cfg(feature = "monitor")]
-mod shutdown;
-#[cfg(feature = "monitor")]
-mod startup;
 mod status;
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::{collections::BTreeMap, path::PathBuf, process::ExitCode};
@@ -25,7 +16,7 @@ struct Cli {
     /// Mainnet: solana, robinhood, base, ethereum-mainnet (eth), arc-mainnet (arc).
     #[arg(long, global = true, value_name = "NETWORK")]
     network: Option<app_config::Network>,
-    /// Emit redacted versioned-API error JSON to stderr on failure.
+    /// Emit JSON logs to stderr, with redacted errors on command failure.
     #[arg(long, global = true)]
     error_json: bool,
     #[command(subcommand)]
@@ -37,9 +28,13 @@ enum Command {
     /// Inspect configured identities offline.
     Status(status::StatusArgs),
     /// Discover, evaluate and deliver alerts.
+    #[cfg(feature = "monitor")]
     Monitor(monitor::MonitorArgs),
+    #[cfg(feature = "codex")]
     ListPools(live::MarketArgs),
+    #[cfg(feature = "codex")]
     EvaluateToken(live::MarketArgs),
+    #[cfg(feature = "codex")]
     AnalyzeToken(live::AnalyzeArgs),
     /// List only plugins compiled into this binary.
     Plugins {
@@ -71,10 +66,16 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Command::Status(args) => status::run(args)?,
-        Command::Monitor(args) => live::runtime()?.block_on(monitor::run(args, cli.network))?,
-        Command::ListPools(args) => live::runtime()?.block_on(live::list(args))?,
-        Command::EvaluateToken(args) => live::runtime()?.block_on(live::evaluate(args))?,
-        Command::AnalyzeToken(args) => live::runtime()?.block_on(live::analyze(args))?,
+        #[cfg(feature = "monitor")]
+        Command::Monitor(args) => {
+            runtime()?.block_on(monitor::run(args, cli.network, cli.error_json))?
+        }
+        #[cfg(feature = "codex")]
+        Command::ListPools(args) => runtime()?.block_on(live::list(args))?,
+        #[cfg(feature = "codex")]
+        Command::EvaluateToken(args) => runtime()?.block_on(live::evaluate(args))?,
+        #[cfg(feature = "codex")]
+        Command::AnalyzeToken(args) => runtime()?.block_on(live::analyze(args))?,
         Command::Plugins { envelope } => {
             let plugins: Vec<_> = app_bootstrap::catalog()?.descriptors().cloned().collect();
             let output = if envelope {
@@ -130,9 +131,19 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(feature = "monitor")]
+fn runtime() -> Result<tokio::runtime::Runtime, std::io::Error> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+}
+
 /// Run the shared CLI with the public executable name used in help output.
 pub fn entrypoint(binary_name: &'static str) -> ExitCode {
-    let json_requested = std::env::args_os().any(|arg| arg == "--error-json");
+    // Parsing can fail before clap produces Cli, so detect the output mode first.
+    let error_json = std::env::args_os().any(|argument| argument == "--error-json");
+    logging::init(error_json);
+
     let parsed = Cli::command()
         .name(binary_name)
         .bin_name(binary_name)
@@ -146,7 +157,7 @@ pub fn entrypoint(binary_name: &'static str) -> ExitCode {
                 return ExitCode::SUCCESS;
             }
 
-            if json_requested {
+            if error_json {
                 print_json_error("invalid_request", "invalid command arguments");
             } else {
                 let _ = error.print();
@@ -156,14 +167,13 @@ pub fn entrypoint(binary_name: &'static str) -> ExitCode {
         }
     };
 
-    let error_json = cli.error_json;
     match run(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             if error_json {
                 print_json_error("command_failed", "command failed");
             } else {
-                eprintln!("{error}");
+                tracing::error!(error = %error, "command failed");
             }
 
             ExitCode::FAILURE
@@ -172,10 +182,10 @@ pub fn entrypoint(binary_name: &'static str) -> ExitCode {
 }
 
 fn print_json_error(code: &'static str, message: &'static str) {
-    let error = app_api::ErrorEnvelope::new(code, message, format!("cli-{}", std::process::id()));
-    eprintln!(
-        "{}",
-        serde_json::to_string(&error).expect("static error envelope serializes")
+    tracing::error!(
+        code,
+        message,
+        request_id = %format!("cli-{}", std::process::id()),
     );
 }
 

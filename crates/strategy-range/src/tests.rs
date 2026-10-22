@@ -1,8 +1,7 @@
 use super::*;
 use analysis_model::*;
-#[path = "../../../test-support/decision.rs"]
-mod fixtures;
 use fixtures::market;
+use test_support::decision as fixtures;
 
 fn config() -> StrategyConfig {
     StrategyConfig {
@@ -73,11 +72,7 @@ impl Inputs {
 
 #[test]
 fn profiles_threshold_overrides_and_constructor_preserve_requirements_and_identity() {
-    for (profile, recheck) in [
-        (Profile::Low, 1800),
-        (Profile::Medium, 1200),
-        (Profile::High, 900),
-    ] {
+    for (profile, recheck) in [(Profile::Low, 1800), (Profile::High, 900)] {
         assert!(profile.thresholds().validate().is_ok());
         let strategy = RangeStrategy::new(
             InstanceId::new("test").unwrap(),

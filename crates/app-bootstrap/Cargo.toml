@@ -17,8 +17,6 @@
 "telegram" = ["dep:notification-telegram"]
 
 [dependencies]
-"async-trait" = "0.1"
-"monitor-runtime" = { "path" = "../monitor-runtime" }
 "domain" = { "path" = "../domain" }
 "app-config" = { "path" = "../app-config" }
 "plugin-api" = { "path" = "../plugin-api" }

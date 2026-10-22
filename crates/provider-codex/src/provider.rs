@@ -337,11 +337,11 @@ impl CodexProvider {
                 .ok_or_else(|| ProviderError::InvalidSchema("missing data".into()))
         };
 
-        tokio::pin!(work);
-        loop {
-            tokio::select! {
-                result = &mut work => return result,
-                _ = tokio::time::sleep(Duration::from_millis(25)) => ctx.check()?,
+        tokio::select! {
+            biased;
+            _ = ctx.cancellation.cancelled() => Err(ProviderError::Cancelled),
+            result = tokio::time::timeout_at(ctx.deadline.into(), work) => {
+                result.map_err(|_| ProviderError::Timeout)?
             }
         }
     }

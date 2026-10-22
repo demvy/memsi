@@ -1,13 +1,9 @@
 use crate::detector_core::{
-    Candle, DetectedRange, RangeDetection, RangeDetectorConfig, RangeDetectorScratch,
-    RangeDiagnostics, RangeError, RangeState,
+    DetectedRange, RangeDetection, RangeDetectorConfig, RangeDetectorScratch, RangeDiagnostics,
+    RangeError, RangeState,
     candidate::{CandidateRange, evaluate_candidate},
     metrics::EPSILON,
 };
-
-pub trait DetectRange {
-    fn detect_closes(&self, closes: &[f64]) -> Result<RangeDetection, RangeError>;
-}
 
 /// Immutable, shareable detector configured for a particular bar cadence.
 #[derive(Clone, Debug)]
@@ -83,17 +79,6 @@ impl RangeDetector {
         }
 
         Ok(empty_detection(RangeState::NoRange, max_quality))
-    }
-
-    pub fn detect_candles(&self, candles: &[Candle]) -> Result<RangeDetection, RangeError> {
-        let closes: Vec<_> = candles.iter().map(|candle| candle.close).collect();
-        self.detect_closes(&closes)
-    }
-}
-
-impl DetectRange for RangeDetector {
-    fn detect_closes(&self, closes: &[f64]) -> Result<RangeDetection, RangeError> {
-        RangeDetector::detect_closes(self, closes)
     }
 }
 

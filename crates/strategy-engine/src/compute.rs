@@ -66,10 +66,8 @@ impl ComputeCache {
             });
         }
 
-        let artifacts = ArtifactStore::default();
         let context = AnalysisContext {
             candles: &view,
-            dependencies: &artifacts,
             as_of,
         };
 

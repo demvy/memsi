@@ -3,6 +3,20 @@ use analysis_api::AnalysisValue;
 use analysis_model::{RangeAnalysis, TrendAnalysis, VolumeAnalysis};
 use domain::*;
 use provider_api::*;
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum PreparationError {
+    #[error("range analysis unavailable")]
+    RangeUnavailable,
+    #[error("volume analysis unavailable")]
+    VolumeUnavailable,
+    #[error("invalid input hash")]
+    InputHash,
+    #[error("invalid trend input hash")]
+    TrendInputHash,
+    #[error("incompatible analyzer output")]
+    IncompatibleOutput,
+}
+
 pub(crate) struct PreparedAnalysis {
     pub(crate) candles: CandleSeries,
     pub(crate) candle_input_hash: ContentHash,
@@ -17,15 +31,15 @@ pub(crate) fn analyze_pool(
     series: &CandleSeries,
     cache: &ComputeCache,
     as_of: TimestampMs,
-) -> Result<PreparedAnalysis, &'static str> {
+) -> Result<PreparedAnalysis, PreparationError> {
     let range = cache
-        .analyze(plan.range.ok_or("missing range binding")?, series, as_of)
-        .map_err(|_| "range analysis unavailable")?;
+        .analyze(plan.range, series, as_of)
+        .map_err(|_| PreparationError::RangeUnavailable)?;
     let volume = cache
-        .analyze(plan.volume.ok_or("missing volume binding")?, series, as_of)
-        .map_err(|_| "volume analysis unavailable")?;
+        .analyze(plan.volume, series, as_of)
+        .map_err(|_| PreparationError::VolumeUnavailable)?;
     let mut input_hash = ContentHash::of(&(1u8, &range.input_hash, &volume.input_hash))
-        .map_err(|_| "invalid input hash")?;
+        .map_err(|_| PreparationError::InputHash)?;
     let trend = if let Some(analyzer) = plan.trend {
         let computed = cache.analyze(analyzer, series, as_of).ok();
         input_hash = ContentHash::of(&(
@@ -34,7 +48,7 @@ pub(crate) fn analyze_pool(
             analyzer.config_digest(),
             computed.as_ref().map(|result| &result.input_hash),
         ))
-        .map_err(|_| "invalid trend input hash")?;
+        .map_err(|_| PreparationError::TrendInputHash)?;
         computed.and_then(|result| match result.value {
             AnalysisValue::Trend(trend)
                 if trend.slope_log_per_bar.is_finite()
@@ -61,7 +75,7 @@ pub(crate) fn analyze_pool(
             trend,
             input_hash,
         }),
-        _ => Err("incompatible analyzer output"),
+        _ => Err(PreparationError::IncompatibleOutput),
     }
 }
 

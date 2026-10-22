@@ -1,5 +1,6 @@
 use crate::VolumeConfig;
 use crate::robust;
+use analysis_api::identifiers;
 use analysis_api::*;
 use analysis_model::{ActivityState, VolumeAnalysis};
 use domain::*;
@@ -37,21 +38,13 @@ impl VolumeAnalyzer {
             version: env!("CARGO_PKG_VERSION").into(),
             kind: plugin_api::PluginKind::Analyzer,
             provides: vec![plugin_api::Capability::pure(
-                CapabilityId::new("analysis.volume").unwrap(),
-                1,
+                CapabilityId::new(identifiers::VOLUME_SCHEMA).unwrap(),
+                identifiers::SCHEMA_MAJOR,
             )],
         }
     }
 
-    pub fn analyze_values(
-        &self,
-        values: &[f64],
-        unit: VolumeUnit,
-    ) -> Result<VolumeAnalysis, AnalysisError> {
-        self.analyze_metrics(values, unit)
-    }
-
-    fn analyze_metrics(
+    pub(crate) fn analyze_metrics(
         &self,
         values: &[f64],
         unit: VolumeUnit,
@@ -144,7 +137,6 @@ impl Analyzer for VolumeAnalyzer {
                 desired_bars: n,
                 require_volume: true,
             },
-            dependencies: vec![],
         }
     }
 

@@ -12,7 +12,7 @@ mod scratch;
 mod types;
 
 pub use config::RangeDetectorConfig;
-pub use detector::{DetectRange, RangeDetector};
+pub use detector::RangeDetector;
 pub use error::RangeError;
 pub use scratch::RangeDetectorScratch;
-pub use types::{Candle, DetectedRange, RangeDetection, RangeDiagnostics, RangeState};
+pub use types::{DetectedRange, RangeDetection, RangeDiagnostics, RangeState};

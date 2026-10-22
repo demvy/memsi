@@ -6,6 +6,7 @@
 "autobenches" = false
 
 [dependencies]
+tracing = "0.1"
 "sqlx" = { "version" = "0.9", "default-features" = false, "features" = ["sqlite", "runtime-tokio"] }
 "time" = "0.3.44"
 "httpdate" = "1"
@@ -19,3 +20,6 @@
 "async-trait" = "0.1"
 "reqwest" = { "version" = "0.13", "default-features" = false, "features" = ["json", "rustls"] }
 "tokio" = { "version" = "1", "features" = ["sync", "time", "rt", "macros"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

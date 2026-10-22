@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-use domain::{ChainId, PriceUnit};
 use notification_api::Notification;
 use signal_api::{SignalFact, SignalKind};
 
@@ -89,107 +88,6 @@ fn html(value: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
-}
-
-pub fn plain_text(notification: &Notification) -> String {
-    let signal = &notification.signal;
-    let title = match signal.kind {
-        SignalKind::ResearchMatch => "Research match",
-        SignalKind::LpCandidate => "LP candidate",
-    };
-
-    let symbol = clean(signal.symbol.as_deref().unwrap_or("unknown ticker"), 64);
-    let chain = match signal.token.chain() {
-        ChainId::Evm { chain_id } => format!("EVM {chain_id}"),
-        ChainId::Solana { .. } => "Solana".into(),
-    };
-
-    let pool = signal
-        .pool
-        .as_address()
-        .map(str::to_owned)
-        .unwrap_or_else(|| format!("{:?}", signal.pool.locator()));
-    let mut text = format!(
-        "{title} · {symbol}\nStrategy: {}\nChain: {chain}\nToken: {}\nPool: {pool}\nCreated (Unix ms): {}\nSignal: {}\n",
-        signal.strategy,
-        signal.token.address(),
-        signal.created_at.get(),
-        &signal.id.as_str()[..12]
-    );
-    for link in notification.links.iter().take(4) {
-        let allowed = [
-            "https://explorer.solana.com/",
-            "https://etherscan.io/",
-            "https://basescan.org/",
-            "https://dexscreener.com/solana/",
-            "https://dexscreener.com/ethereum/",
-            "https://dexscreener.com/base/",
-        ];
-        if allowed.iter().any(|prefix| link.url.starts_with(prefix))
-            && !link.url.chars().any(char::is_control)
-            && link.url.len() < 512
-        {
-            append(
-                &mut text,
-                &format!("{}: {}", clean(&link.label, 32), link.url),
-            );
-        }
-    }
-    // Warnings precede optional facts so truncation cannot hide the research/risk label.
-    for warning in &signal.warnings {
-        append(&mut text, &format!("Warning: {}", clean(warning, 160)));
-    }
-
-    if !signal.reasons.is_empty() {
-        append(&mut text, "Matched because:");
-        for reason in signal.reasons.iter().take(12) {
-            append(
-                &mut text,
-                &format!("+ {}", clean(reason, 160).replace('_', " ").to_lowercase()),
-            );
-        }
-    }
-
-    for fact in &signal.facts {
-        let line = match fact {
-            SignalFact::Money {
-                label,
-                usd,
-                window_secs,
-            } => format!(
-                "{}: ${}{}",
-                clean(label, 64),
-                usd.get(),
-                window_secs
-                    .map(|seconds| format!(" / {seconds}s"))
-                    .unwrap_or_default()
-            ),
-            SignalFact::Range { lower, upper, unit } => {
-                let unit = match unit {
-                    PriceUnit::UsdPerToken => "USD/token".into(),
-                    PriceUnit::QuotePerToken { quote } => format!("{} per token", quote.address()),
-                };
-
-                format!("Range: {}–{} {unit}", lower.get(), upper.get())
-            }
-
-            SignalFact::Confidence { value } => format!("Confidence: {:.1}%", value.get() * 100.),
-            SignalFact::Text { label, value } => {
-                format!("{}: {}", clean(label, 64), clean(value, 256))
-            }
-        };
-
-        append(&mut text, &line);
-    }
-
-    text
-}
-
-fn append(text: &mut String, line: &str) {
-    if text.encode_utf16().count() + line.encode_utf16().count() < 3500 {
-        text.push_str(line);
-        text.push('\n');
-    }
 }
 
 fn clean(value: &str, limit: usize) -> String {

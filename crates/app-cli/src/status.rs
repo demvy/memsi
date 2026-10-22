@@ -10,9 +10,8 @@ pub fn run(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>> {
     let environment =
         BTreeMap::from_iter(std::env::vars().filter(|(key, _)| key.starts_with("MEME__")));
     let config = app_config::AppConfig::load(&args.config, &environment, &BTreeMap::new())?;
-    let app = app_bootstrap::build(&config)?;
+    app_bootstrap::build(&config)?;
     let state = app_bootstrap::StateInspection::VolatileProcessStateUnavailable;
-    let _ = app;
     let instances: Vec<_> = config
         .instances()
         .filter(|i| i.enabled)
@@ -27,7 +26,7 @@ pub fn run(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>> {
             })
         })
         .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
-    let status: app_api::StatusEnvelope<_, ()> = app_api::StatusEnvelope::new(
+    let status: app_api::StatusEnvelope<_> = app_api::StatusEnvelope::new(
         config.digest(),
         config.chain.clone(),
         serde_json::to_value(config.mode)?
@@ -36,8 +35,6 @@ pub fn run(args: StatusArgs) -> Result<(), Box<dyn std::error::Error>> {
             .into(),
         instances,
         state,
-        None,
-        None,
     );
     println!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())

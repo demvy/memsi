@@ -1,8 +1,6 @@
 use super::*;
-#[path = "../../../test-support/signal.rs"]
-mod fixtures;
-#[path = "../../../test-support/market.rs"]
-mod market;
+use test_support::market;
+use test_support::signal as fixtures;
 
 fn target() -> DeliveryTarget {
     DeliveryTarget {

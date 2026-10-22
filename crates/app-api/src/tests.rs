@@ -1,9 +1,7 @@
 use super::*;
 use std::collections::BTreeSet;
-#[path = "../../../test-support/market.rs"]
-mod fixtures;
-#[path = "../../../test-support/strategy_config.rs"]
-mod strategy_config;
+use test_support::market as fixtures;
+use test_support::strategy_config;
 
 fn request() -> AnalysisJobRequest {
     serde_json::from_value(serde_json::json!({"token": fixtures::token(1)})).unwrap()
@@ -62,43 +60,17 @@ fn job_request_rejects_wrong_chain_unauthorized_notifications_and_invalid_analyz
 #[test]
 fn status_envelope_builders_preserve_observation_state_and_version() {
     let digest = ContentHash::of_bytes(b"config");
-    let status: StatusEnvelope<(), ()> = StatusEnvelope::new(
+    let status: StatusEnvelope<()> = StatusEnvelope::new(
         digest.clone(),
         fixtures::chain(),
         "observe".into(),
         vec![],
         (),
-        None,
-        None,
     );
     assert_eq!(status.schema_version, 1);
     assert_eq!(status.provider_health, "not_observed");
-    assert_eq!(status.runtime_status, "not_observed");
-    let status = status
-        .with_provider_transport(Some(ProviderTransportObservation {
-            instance: InstanceId::new("codex").unwrap(),
-            counters: Default::default(),
-        }))
-        .with_analysis_jobs(Some(AnalysisJobStats {
-            schema_version: 1,
-            closed: false,
-            capacity: 8,
-            worker_capacity: 2,
-            pending: 0,
-            running: 0,
-            completed: 1,
-            failed: 0,
-            admission_available: true,
-        }));
     let encoded = serde_json::to_value(status).unwrap();
     assert_eq!(encoded["config_digest"], digest.as_str());
-    assert_eq!(encoded["provider_transport"]["instance"], "codex");
-    assert_eq!(encoded["analysis_jobs"]["completed"], 1);
-    let error = ErrorEnvelope::new("invalid_request", "invalid request", "test-id".into());
-    assert_eq!(
-        serde_json::to_value(error).unwrap(),
-        serde_json::json!({"code":"invalid_request", "message":"invalid request", "request_id":"test-id", "details":null})
-    );
 }
 
 #[test]

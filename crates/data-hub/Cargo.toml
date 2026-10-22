@@ -12,3 +12,6 @@
 "provider-api" = { "path" = "../provider-api" }
 "serde" = { "version" = "1", "features" = ["derive"] }
 "tokio" = { "version" = "1", "features" = ["rt", "sync", "time", "macros"] }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

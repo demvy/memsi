@@ -1,4 +1,10 @@
-use crate::shutdown::shutdown_signal;
+mod discovery_logging;
+mod quota;
+mod request_logging;
+mod shutdown;
+mod startup;
+
+use self::shutdown::shutdown_signal;
 use clap::Args;
 use provider_api::Cancellation;
 use std::{collections::BTreeMap, path::PathBuf, time::Duration};
@@ -22,8 +28,9 @@ pub struct MonitorArgs {
 pub async fn run(
     args: MonitorArgs,
     network: Option<app_config::Network>,
+    json_logging: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    super::startup::log(&args.config);
+    startup::log(&args.config);
     let environment =
         BTreeMap::from_iter(std::env::vars().filter(|(key, _)| key.starts_with("MEME__")));
     let mut overrides = BTreeMap::new();
@@ -40,14 +47,12 @@ pub async fn run(
         config.select_network(network)?;
     }
 
-    eprintln!(
-        "{}",
-        serde_json::json!({
-            "event": "monitor_config_loaded",
-            "discovery_interval_secs": config.monitor.poll_interval_secs,
-            "request_deadline_secs": config.monitor.candidate_deadline_secs,
-            "chain": config.chain,
-        })
+    tracing::info!(
+        event = "monitor_config_loaded",
+        discovery_interval_secs = config.monitor.poll_interval_secs,
+        request_deadline_secs = config.monitor.candidate_deadline_secs,
+        chain = ?config.chain,
+        "Monitor configuration loaded"
     );
     let mut app = app_bootstrap::build(&config)?;
     #[allow(unused_mut)]
@@ -57,7 +62,7 @@ pub async fn run(
         .clone()
         .map(|reader| (selected.id.clone(), reader));
     let services = app_services::Services::new(selected.market)?;
-    eprintln!("data_origin=codex");
+    tracing::info!(data_origin = "codex", "Market data source");
     let state: std::sync::Arc<dyn state_api::StateStore> =
         std::sync::Arc::from(app.state.open().await?);
     let clock = signal_service::SystemClock;
@@ -74,17 +79,12 @@ pub async fn run(
         clock: &clock,
     };
 
-    let mut monitor = monitor_runtime::Monitor::new(dependencies)?
-        .with_events(app.events.clone())
-        .with_diagnostics(std::sync::Arc::new(crate::discovery_logging::Console::new(
-            args.debug, &config,
-        )));
+    let mut monitor =
+        monitor_runtime::Monitor::new(dependencies)?.with_diagnostics(std::sync::Arc::new(
+            discovery_logging::Console::new(args.debug, &config, json_logging),
+        ));
     let cancellation = Cancellation::default();
-    eprintln!(
-        "state_durability={:?} mode={:?}",
-        state.durability(),
-        config.mode
-    );
+    tracing::info!(state_durability = ?state.durability(), mode = ?config.mode, "Monitor started");
     {
         let market_work = Box::pin(async {
             market(
@@ -97,7 +97,7 @@ pub async fn run(
             )
             .await
         });
-        let market_work = crate::quota::supervise(
+        let market_work = quota::supervise(
             market_work,
             provider_observer
                 .as_ref()
@@ -113,7 +113,7 @@ pub async fn run(
                 interrupted?;
                 cancellation.cancel();
 
-                eprintln!("shutdown requested: settling in-flight work (up to 15 seconds)");
+                tracing::info!("shutdown requested: settling in-flight work (up to 15 seconds)");
                 tokio::select! {
                     result = tokio::time::timeout(Duration::from_secs(15), &mut work) => {
                         match result {
@@ -135,16 +135,16 @@ pub async fn run(
 
     let stats = state.stats().await?;
     if stats.durability == "volatile" && stats.pending > 0 {
-        eprintln!(
-            "warning: {} pending deliveries will be lost with volatile state",
-            stats.pending
+        tracing::warn!(
+            pending = stats.pending,
+            "Pending deliveries will be lost with volatile state"
         );
     }
 
     if let Some((instance, reader)) = &provider_observer
         && let Some(transport) = reader.transport_observations()
     {
-        eprintln!(
+        tracing::info!(
             "transport {}",
             serde_json::to_string(&serde_json::json!({
                 "provider": instance,
@@ -153,7 +153,7 @@ pub async fn run(
         );
     }
 
-    eprintln!("shutdown {}", serde_json::to_string(&stats)?);
+    tracing::info!("shutdown {}", serde_json::to_string(&stats)?);
     Ok(())
 }
 
@@ -163,20 +163,24 @@ async fn market(
     once: bool,
     observer: Option<&dyn provider_api::TransportObservationReader>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut requests = crate::request_logging::Counter::new(observer);
+    let mut requests = request_logging::Counter::new(observer);
     if once {
         let report = monitor.cycle(cancellation).await?;
         requests.log();
-        eprintln!("{}", serde_json::to_string(&report)?);
+        tracing::info!(event = "monitor_cycle", report = %serde_json::to_string(&report)?, "Monitor cycle completed");
+
+        if report.has_errors() {
+            return Err("monitor cycle completed with errors".into());
+        }
     } else {
         monitor
             .run(cancellation, |report| {
                 if report.discovered > 0 || report.evaluated > 0 || !report.errors.is_empty() {
                     requests.log();
                     match serde_json::to_string(report) {
-                        Ok(json) => eprintln!("{json}"),
+                        Ok(json) => tracing::info!(event = "monitor_cycle", report = %json, "Monitor cycle completed"),
                         Err(error) => {
-                            eprintln!("cycle report serialization failed: {error}")
+                            tracing::error!(error = %error, "cycle report serialization failed")
                         }
                     }
                 }

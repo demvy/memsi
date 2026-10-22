@@ -1,13 +1,30 @@
 use crate::{analysis::PreparedAnalysis, inputs::Evaluation};
+use analysis_api::identifiers;
 use domain::*;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use strategy_api::*;
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum DecisionError {
+    #[error("invalid snapshot")]
+    Snapshot,
+    #[error("invalid trend snapshot")]
+    TrendSnapshot,
+    #[error("invalid input snapshot")]
+    InputSnapshot,
+    #[error("invalid metrics snapshot")]
+    MetricsSnapshot,
+    #[error("invalid metrics input")]
+    MetricsInput,
+    #[error("strategy returned an invalid result or panicked")]
+    InvalidResult,
+}
+
 pub(crate) fn decide(
     strategy: &dyn Strategy,
     pool: &PoolSnapshot,
     evaluation: &Evaluation<'_>,
     analysis: &PreparedAnalysis,
-) -> Result<StrategyDecision, &'static str> {
+) -> Result<StrategyDecision, DecisionError> {
     let mut snapshot_hash = ContentHash::of(&(
         pool,
         &analysis.input_hash,
@@ -15,21 +32,21 @@ pub(crate) fn decide(
         &analysis.volume,
         evaluation.as_of,
     ))
-    .map_err(|_| "invalid snapshot")?;
+    .map_err(|_| DecisionError::Snapshot)?;
     if let Some(trend) = &analysis.trend {
         snapshot_hash =
-            ContentHash::of(&(&snapshot_hash, trend)).map_err(|_| "invalid trend snapshot")?;
+            ContentHash::of(&(&snapshot_hash, trend)).map_err(|_| DecisionError::TrendSnapshot)?;
     }
 
     let mut input_snapshot_hash =
         ContentHash::of(&(1u8, pool, &analysis.input_hash, evaluation.as_of))
-            .map_err(|_| "invalid input snapshot")?;
+            .map_err(|_| DecisionError::InputSnapshot)?;
     if !evaluation.candidate.metrics.is_empty() {
         snapshot_hash = ContentHash::of(&(&snapshot_hash, &evaluation.candidate.metrics))
-            .map_err(|_| "invalid metrics snapshot")?;
+            .map_err(|_| DecisionError::MetricsSnapshot)?;
         input_snapshot_hash =
             ContentHash::of(&(&input_snapshot_hash, &evaluation.candidate.metrics))
-                .map_err(|_| "invalid metrics input")?;
+                .map_err(|_| DecisionError::MetricsInput)?;
     }
 
     let context = StrategyContext {
@@ -47,7 +64,7 @@ pub(crate) fn decide(
     let result = catch_unwind(AssertUnwindSafe(|| strategy.evaluate(&context)));
     let mut decision = match result {
         Ok(Ok(decision)) if valid_decision(&decision, strategy, &context) => decision,
-        _ => return Err("strategy returned an invalid result or panicked"),
+        _ => return Err(DecisionError::InvalidResult),
     };
 
     decision.evidence.candle_input_hash = Some(analysis.candle_input_hash.clone());
@@ -87,12 +104,9 @@ fn valid_decision(
         || ((!strategy.requirements().pool.concentrated_only
             || context.pool.concentrated_at(context.as_of))
             && primary_evidence
-            && (!strategy
-                .requirements()
-                .analyses
-                .iter()
-                .any(|binding| binding.name.as_str() == "trend" && binding.required)
-                || decision.evidence.trend.is_some()));
+            && (!strategy.requirements().analyses.iter().any(|binding| {
+                binding.name.as_str() == identifiers::TREND_BINDING && binding.required
+            }) || decision.evidence.trend.is_some()));
     evidence_matches
         && eligible_match
         && decision.config_digest == *strategy.config_digest()

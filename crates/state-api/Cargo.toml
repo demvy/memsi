@@ -6,6 +6,7 @@
 "autobenches" = false
 
 [dependencies]
+tracing = "0.1"
 "domain" = { "path" = "../domain" }
 "signal-api" = { "path" = "../signal-api" }
 "notification-api" = { "path" = "../notification-api" }
@@ -14,3 +15,6 @@
 "async-trait" = "0.1"
 "serde_json" = "1"
 "discovery-api" = { "path" = "../discovery-api" }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

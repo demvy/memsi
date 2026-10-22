@@ -66,7 +66,6 @@ pub struct CandidateBatch {
 
 #[async_trait]
 pub trait CandidateSource: Send + Sync {
-    fn descriptor(&self) -> plugin_api::PluginDescriptor;
     async fn poll(
         &self,
         query: &DiscoveryQuery,

@@ -1,8 +1,7 @@
 use super::*;
 use analysis_api::*;
 use domain::*;
-#[path = "../../../test-support/market.rs"]
-mod fixtures;
+use test_support::market as fixtures;
 
 #[test]
 fn constructor_normalizes_windows_and_checks_resource_and_history_bounds() {
@@ -48,17 +47,15 @@ fn analyzer_contract_runs_detector_and_rejects_future_and_short_history() {
     );
     let requirements = analyzer.requirements(Resolution::new(60).unwrap(), PriceUnit::UsdPerToken);
     assert!(!requirements.candles.require_volume);
-    assert!(requirements.dependencies.is_empty());
     let count = requirements.candles.desired_bars;
     let prices: Vec<_> = (0..count)
         .map(|index| 1.5 + (index as f64 * 0.3).sin() * 0.1)
         .collect();
     let mut series = fixtures::series(&prices, &vec![1.0; count]);
-    let dependencies = ArtifactStore::default();
+
     let analyze = |series: &CandleSeries, as_of| {
         analyzer.analyze(&AnalysisContext {
             candles: series,
-            dependencies: &dependencies,
             as_of,
         })
     };
@@ -112,25 +109,4 @@ fn detector_error_messages_explain_invalid_inputs_and_scratch_can_be_reused() {
         .detect_closes_with_scratch(&vec![2.0; 300], &mut scratch)
         .unwrap();
     assert_eq!(first.state, second.state);
-}
-
-#[test]
-fn candle_detector_and_trait_adapter_use_the_same_close_prices() {
-    use crate::detector_core::{Candle, DetectRange, RangeDetector, RangeDetectorConfig};
-    let detector = RangeDetector::new(RangeDetectorConfig::default()).unwrap();
-    let candles: Vec<_> = (0..300)
-        .map(|index| Candle {
-            timestamp_ms: index * 60_000,
-            open: 1.0,
-            high: 2.0,
-            low: 1.0,
-            close: 1.5,
-            volume: 10.0,
-        })
-        .collect();
-    let direct = detector.detect_candles(&candles).unwrap();
-    let adapter: &dyn DetectRange = &detector;
-    let through_trait = adapter.detect_closes(&vec![1.5; 300]).unwrap();
-    assert_eq!(direct.state, through_trait.state);
-    assert_eq!(direct.confidence, through_trait.confidence);
 }

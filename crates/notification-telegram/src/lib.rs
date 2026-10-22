@@ -86,16 +86,11 @@ impl TelegramSink {
         html: bool,
     ) -> Result<DeliveryReceipt, NotificationError> {
         ctx.check().map_err(|_| NotificationError::Cancelled)?;
-        let work = self.attempt(text, html);
-        tokio::pin!(work);
-        loop {
-            tokio::select! {
-                result = &mut work => return result,
-                _ = tokio::time::sleep(Duration::from_millis(25)) => {
-                    if ctx.check().is_err() {
-                        return Err(NotificationError::UnknownOutcome);
-                    }
-                }
+        tokio::select! {
+            biased;
+            _ = ctx.cancellation.cancelled() => Err(NotificationError::UnknownOutcome),
+            result = tokio::time::timeout_at(ctx.deadline.into(), self.attempt(text, html)) => {
+                result.map_err(|_| NotificationError::UnknownOutcome)?
             }
         }
     }

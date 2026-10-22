@@ -1,0 +1,17 @@
+[package]
+name = "test-support"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+domain = { path = "../crates/domain" }
+analysis-model = { path = "../crates/analysis-model" }
+strategy-api = { path = "../crates/strategy-api" }
+strategy-range = { path = "../crates/strategy-range" }
+provider-api = { path = "../crates/provider-api" }
+signal-api = { path = "../crates/signal-api" }
+async-trait = "0.1"

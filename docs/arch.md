@@ -21,7 +21,6 @@ flowchart TD
     Runtime --> Delivery[signal-service]
     Delivery --> State
     Delivery --> Sinks[console / Telegram]
-    Runtime --> Events[event-api / bounded runtime telemetry]
 ```
 
 ## Module boundaries
@@ -37,7 +36,6 @@ flowchart TD
 | Orchestration | `app-services`, `strategy-engine`, `monitor-runtime` | Input planning, shared computation, independent evaluation, discovery cycles and watchlist TTL |
 | Notifications | `signal-api`, `signal-service`, `notification-api`, `notification-render`, `notification-console`, `notification-telegram` | Signals, idempotent acceptance, delivery and presentation |
 | Process state | `state-api`, `state-memory` | Signal/dedupe/outbox state and watchlist checkpoints; no accounting or execution repositories |
-| Runtime telemetry | `event-api` | Typed lifecycle events and bounded runtime counters |
 | Construction and CLI | `app-config`, `app-bootstrap`, `app-cli`, `app-api` | Configuration, factories, commands and the CLI's public JSON shapes |
 
 The horizontal RangeDetector is embedded in `analyzer-range/src/detector_core/`. Its algorithm is preserved, but it has no separate package, executable, or root directory.
@@ -56,4 +54,4 @@ The monitor uses one Tokio executor thread. Candidate futures, bounded HTTP requ
 
 The project uses Rust 2024 / Rust 1.94+, Cargo workspaces, Tokio, futures, Serde/TOML/JSON, clap, reqwest with Rustls, SQLx SQLite and SHA-256 identities. The architecture is a modular monolith with ports/adapters, a composition root, compile-time strategy plugins, singleflight caching, an in-memory transactional outbox and bounded supervision.
 
-See [README.md](README.md) for usage and configuration, [CONTENTS.md](CONTENTS.md) for the package inventory.
+See [README.md](../README.md) for usage and configuration, [CONTENTS.md](CONTENTS.md) for the package inventory.

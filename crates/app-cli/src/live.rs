@@ -161,12 +161,6 @@ pub async fn analyze(args: AnalyzeArgs) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-pub fn runtime() -> Result<tokio::runtime::Runtime, std::io::Error> {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-}
-
 /// Evaluate all configured strategies; each strategy owns its timeframe and filters.
 pub async fn evaluate(args: MarketArgs) -> Result<(), Box<dyn std::error::Error>> {
     let LoadedApp {

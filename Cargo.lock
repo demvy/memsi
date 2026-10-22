@@ -36,6 +36,7 @@ dependencies = [
  "domain",
  "plugin-api",
  "serde",
+ "test-support",
 ]
 
 [[package]]
@@ -47,6 +48,7 @@ dependencies = [
  "domain",
  "plugin-api",
  "serde",
+ "test-support",
 ]
 
 [[package]]
@@ -58,6 +60,7 @@ dependencies = [
  "domain",
  "plugin-api",
  "serde",
+ "test-support",
 ]
 
 [[package]]
@@ -117,13 +120,13 @@ dependencies = [
  "app-services",
  "data-hub",
  "domain",
- "event-api",
  "plugin-api",
- "provider-api",
  "serde",
  "serde_json",
  "strategy-api",
  "strategy-range",
+ "test-support",
+ "thiserror",
 ]
 
 [[package]]
@@ -135,10 +138,8 @@ dependencies = [
  "analyzer-trend",
  "analyzer-volume",
  "app-config",
- "async-trait",
  "discovery-api",
  "domain",
- "monitor-runtime",
  "notification-api",
  "notification-console",
  "notification-telegram",
@@ -169,14 +170,14 @@ dependencies = [
  "domain",
  "monitor-runtime",
  "provider-api",
- "serde",
  "serde_json",
  "signal-service",
  "state-api",
  "strategy-api",
  "time",
  "tokio",
- "toml",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -195,16 +196,15 @@ version = "0.1.0"
 dependencies = [
  "analysis-api",
  "analyzer-volume",
- "async-trait",
  "data-hub",
  "domain",
  "futures",
- "plugin-api",
  "provider-api",
  "serde",
  "strategy-api",
  "strategy-engine",
  "strategy-range",
+ "test-support",
  "tokio",
 ]
 
@@ -494,6 +494,7 @@ dependencies = [
  "futures",
  "provider-api",
  "serde",
+ "test-support",
  "tokio",
 ]
 
@@ -519,10 +520,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "domain",
- "plugin-api",
  "provider-api",
  "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -582,14 +581,6 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "event-api"
-version = "0.1.0"
-dependencies = [
- "domain",
- "serde",
 ]
 
 [[package]]
@@ -1120,6 +1111,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy_static"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1174,6 +1171,7 @@ name = "memes_finder"
 version = "0.1.0"
 dependencies = [
  "app-cli",
+ "serde_json",
 ]
 
 [[package]]
@@ -1199,9 +1197,7 @@ dependencies = [
  "async-trait",
  "discovery-api",
  "domain",
- "event-api",
  "futures",
- "plugin-api",
  "provider-api",
  "serde",
  "signal-service",
@@ -1209,6 +1205,7 @@ dependencies = [
  "state-memory",
  "strategy-api",
  "strategy-range",
+ "test-support",
  "thiserror",
  "tokio",
 ]
@@ -1237,7 +1234,7 @@ dependencies = [
  "plugin-api",
  "provider-api",
  "serde",
- "signal-api",
+ "test-support",
  "tokio",
 ]
 
@@ -1248,6 +1245,7 @@ dependencies = [
  "domain",
  "notification-api",
  "signal-api",
+ "test-support",
 ]
 
 [[package]]
@@ -1264,8 +1262,17 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "signal-api",
+ "test-support",
  "tokio",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.50.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+dependencies = [
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1387,10 +1394,10 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "domain",
- "plugin-api",
  "serde",
  "thiserror",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1408,8 +1415,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "test-support",
  "time",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1783,6 +1792,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sharded-slab"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,10 +1829,8 @@ dependencies = [
 name = "signal-service"
 version = "0.1.0"
 dependencies = [
- "analysis-model",
  "async-trait",
  "domain",
- "event-api",
  "futures",
  "notification-api",
  "provider-api",
@@ -1822,6 +1838,7 @@ dependencies = [
  "state-api",
  "state-memory",
  "strategy-api",
+ "test-support",
  "tokio",
 ]
 
@@ -1993,7 +2010,9 @@ dependencies = [
  "serde",
  "serde_json",
  "signal-api",
+ "test-support",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -2003,8 +2022,6 @@ dependencies = [
  "async-trait",
  "domain",
  "notification-api",
- "serde",
- "serde_json",
  "signal-api",
  "state-api",
  "tokio",
@@ -2030,15 +2047,14 @@ dependencies = [
  "analysis-model",
  "analyzer-range",
  "analyzer-volume",
- "async-trait",
  "data-hub",
  "domain",
  "futures",
- "plugin-api",
  "provider-api",
  "serde",
  "strategy-api",
  "strategy-range",
+ "test-support",
  "thiserror",
  "tokio",
 ]
@@ -2051,6 +2067,7 @@ dependencies = [
  "plugin-api",
  "strategy-api",
  "strategy-range",
+ "test-support",
 ]
 
 [[package]]
@@ -2061,6 +2078,7 @@ dependencies = [
  "plugin-api",
  "strategy-api",
  "strategy-range",
+ "test-support",
 ]
 
 [[package]]
@@ -2073,6 +2091,7 @@ dependencies = [
  "plugin-api",
  "serde",
  "strategy-api",
+ "test-support",
 ]
 
 [[package]]
@@ -2130,6 +2149,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-support"
+version = "0.1.0"
+dependencies = [
+ "analysis-model",
+ "async-trait",
+ "domain",
+ "provider-api",
+ "signal-api",
+ "strategy-api",
+ "strategy-range",
+]
+
+[[package]]
 name = "thiserror"
 version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2147,6 +2179,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
+]
+
+[[package]]
+name = "thread_local"
+version = "1.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
+dependencies = [
+ "cfg-if",
 ]
 
 [[package]]
@@ -2239,6 +2280,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3d06f0b082ba57c26b79407372e57cf2a1e28124f78e9479fe80322cf53420b"
 dependencies = [
  "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.7.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "494815d09bf52b5548659851081238f0ca39ff638363907596da739561c62c52"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]
@@ -2357,6 +2412,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+ "valuable",
+]
+
+[[package]]
+name = "tracing-log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
+dependencies = [
+ "nu-ansi-term",
+ "serde",
+ "serde_json",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing-core",
+ "tracing-log",
+ "tracing-serde",
 ]
 
 [[package]]
@@ -2406,6 +2500,12 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "valuable"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vcpkg"

@@ -1,7 +1,6 @@
 use super::*;
 use provider_api::{Cancellation, RequestPriority};
-#[path = "../../../test-support/signal.rs"]
-mod fixtures;
+use test_support::signal as fixtures;
 
 fn build_sink(thread: Option<i64>) -> TelegramSink {
     TelegramSink::new(
@@ -96,4 +95,42 @@ async fn invalid_destination_parts_and_cancelled_contexts_fail_before_network_io
             .unwrap_err(),
         NotificationError::UnknownOutcome
     );
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_a_waiting_send_without_waiting_for_a_timer() {
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+    };
+
+    let sink = build_sink(None);
+    let _send_guard = sink.next_send.lock().await;
+    let context = context();
+    let mut send = std::pin::pin!(sink.deliver_text("text".into(), &context, false));
+    let mut task_context = Context::from_waker(Waker::noop());
+    assert!(send.as_mut().poll(&mut task_context).is_pending());
+
+    context.cancellation.cancel();
+
+    assert!(matches!(
+        send.as_mut().poll(&mut task_context),
+        Poll::Ready(Err(NotificationError::UnknownOutcome))
+    ));
+}
+
+#[tokio::test]
+async fn deadline_interrupts_a_waiting_send_before_credentials_or_http() {
+    let sink = build_sink(None);
+    let _send_guard = sink.next_send.lock().await;
+    let mut context = context();
+    context.deadline = Instant::now() + Duration::from_millis(5);
+    let result = tokio::time::timeout(
+        Duration::from_secs(1),
+        sink.deliver_text("text".into(), &context, false),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result.unwrap_err(), NotificationError::UnknownOutcome);
 }

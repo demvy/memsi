@@ -1,12 +1,9 @@
 use super::*;
-use event_api::{CyclePhase, RuntimeStatusReader};
-use state_api::MonitorRepository;
-use std::sync::atomic::AtomicI64;
-#[path = "../../../test-support/provider.rs"]
-pub(super) mod provider;
 pub(super) use provider::market as fixtures;
-#[path = "../../../test-support/strategy_config.rs"]
-mod strategy_config;
+use state_api::MonitorRepository;
+use std::sync::atomic::{AtomicI64, Ordering};
+pub(super) use test_support::provider;
+use test_support::strategy_config;
 
 struct TestClock(AtomicI64);
 impl Clock for TestClock {
@@ -17,24 +14,24 @@ impl Clock for TestClock {
 
 struct Source {
     panic: bool,
+    error: Option<provider_api::ProviderError>,
+    calls: std::sync::atomic::AtomicUsize,
 }
 #[async_trait::async_trait]
 impl CandidateSource for Source {
-    fn descriptor(&self) -> plugin_api::PluginDescriptor {
-        plugin_api::PluginDescriptor {
-            id: PluginId::new("source.fixture").unwrap(),
-            version: "1".into(),
-            kind: plugin_api::PluginKind::CandidateSource,
-            provides: vec![],
-        }
-    }
     async fn poll(
         &self,
         _: &DiscoveryQuery,
         _: Option<&DiscoveryCursor>,
         _: &RequestContext,
     ) -> Result<discovery_api::CandidateBatch, provider_api::ProviderError> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
         assert!(!self.panic, "simulated discovery panic");
+
+        if let Some(error) = &self.error {
+            return Err(error.clone());
+        }
+
         Ok(discovery_api::CandidateBatch {
             items: vec![fixtures::candidate()],
             next_cursor: None,
@@ -79,7 +76,11 @@ impl Harness {
                 notifications: vec![],
             },
             services: Services::new(Arc::new(provider::Provider::default())).unwrap(),
-            source: Source { panic: false },
+            source: Source {
+                panic: false,
+                error: None,
+                calls: Default::default(),
+            },
             strategies: [(
                 strategy.instance().clone(),
                 Box::new(strategy) as Box<dyn Strategy>,
@@ -133,34 +134,13 @@ impl Harness {
 #[tokio::test]
 async fn monitor_discovers_evaluates_schedules_checkpoints_and_restores_watchlist() {
     let harness = Harness::new();
-    let router = Arc::new(events::EventRouter::default());
-    let mut subscription = router
-        .subscribe(
-            InstanceId::new("test").unwrap(),
-            events::SubscriberKind::Telemetry,
-            32,
-        )
-        .unwrap();
-    let mut monitor = Monitor::new(harness.dependencies())
-        .unwrap()
-        .with_events(router);
+    let mut monitor = Monitor::new(harness.dependencies()).unwrap();
     let scope = monitor.checkpoint_scope().clone();
     let report = monitor.cycle(&Cancellation::default()).await.unwrap();
     assert_eq!(report.discovered, 1);
     assert_eq!(report.evaluated, 1);
     assert_eq!(report.watched, 1);
     assert_eq!(report.accepted, 0);
-    assert!(report.event_enqueued >= 1);
-    assert!(subscription.try_recv().is_ok());
-    assert_eq!(monitor.events().stats().unwrap().len(), 1);
-    assert_eq!(
-        monitor
-            .runtime_status()
-            .runtime_snapshot()
-            .unwrap()
-            .completed_cycles,
-        1
-    );
     let checkpoint = harness
         .state
         .load_checkpoint(&scope)
@@ -180,8 +160,6 @@ async fn monitor_discovers_evaluates_schedules_checkpoints_and_restores_watchlis
 #[tokio::test]
 async fn monitor_validates_constructor_bounds_and_cancelled_cycles_do_no_work() {
     let mut harness = Harness::new();
-    harness.config.mode = AppMode::Live;
-    assert!(Monitor::new(harness.dependencies()).is_err());
     harness.config.mode = AppMode::Signal;
     assert!(Monitor::new(harness.dependencies()).is_err());
     harness.config.mode = AppMode::Observe;
@@ -191,17 +169,6 @@ async fn monitor_validates_constructor_bounds_and_cancelled_cycles_do_no_work() 
     let report = monitor.cycle(&cancellation).await.unwrap();
     assert_eq!(report.discovered, 0);
     assert_eq!(report.evaluated, 0);
-    assert!(monitor.run_cycles(&cancellation, 0, |_| {}).await.is_err());
-    assert!(
-        monitor
-            .run_cycles(&cancellation, 101, |_| {})
-            .await
-            .is_err()
-    );
-    assert_eq!(
-        monitor.run_cycles(&cancellation, 1, |_| {}).await.unwrap(),
-        0
-    );
     assert!(monitor.run(&cancellation, |_| {}).await.is_ok());
 }
 
@@ -227,19 +194,9 @@ async fn repeated_discovery_panics_quarantine_the_source() {
 }
 
 #[tokio::test]
-async fn bounded_and_continuous_runs_stop_when_callback_cancels() {
+async fn continuous_run_stops_when_callback_cancels() {
     let harness = Harness::new();
     let mut monitor = Monitor::new(harness.dependencies()).unwrap();
-    let cancellation = Cancellation::default();
-    let count = monitor
-        .run_cycles(&cancellation, 2, |_| cancellation.cancel())
-        .await
-        .unwrap();
-    assert_eq!(count, 1);
-    assert!(matches!(
-        monitor.runtime_status().runtime_snapshot().unwrap().phase,
-        CyclePhase::Stopped
-    ));
     let cancellation = Cancellation::default();
     monitor
         .run(&cancellation, |_| cancellation.cancel())
@@ -275,6 +232,7 @@ async fn candidate_failures_preserve_health_counts_when_diagnostic_logging_is_mu
     assert_eq!(report.evaluated, 1);
     assert!(report.errors.is_empty());
     assert_eq!(report.muted_errors, 1);
+    assert!(report.has_errors());
 }
 
 pub(super) fn report() -> CycleReport {
@@ -290,8 +248,6 @@ pub(super) fn report() -> CycleReport {
         worker_panics: 0,
         discovery_quarantined: false,
         quarantined_candidates: 0,
-        event_enqueued: 0,
-        event_dropped: 0,
         state: state_api::StateStats {
             durability: "volatile",
             signals: 0,
@@ -300,5 +256,64 @@ pub(super) fn report() -> CycleReport {
             delivered: 0,
             failed: 0,
         },
+    }
+}
+
+#[tokio::test]
+async fn fatal_discovery_errors_stop_after_one_poll() {
+    for error in [
+        provider_api::ProviderError::Unauthorized,
+        provider_api::ProviderError::QuotaExhausted,
+    ] {
+        let mut harness = Harness::new();
+        harness.source.error = Some(error.clone());
+        let mut monitor = Monitor::new(harness.dependencies()).unwrap();
+        let cancellation = Cancellation::default();
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            monitor.run(&cancellation, |_| panic!("fatal cycle must not succeed")),
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(result, Err(MonitorError::Provider(actual)) if actual == error));
+        assert_eq!(harness.source.calls.load(Ordering::Relaxed), 1);
+    }
+}
+
+#[tokio::test]
+async fn transient_discovery_failure_remains_a_cycle_report_error() {
+    let mut harness = Harness::new();
+    harness.source.error = Some(provider_api::ProviderError::Transport);
+    let mut monitor = Monitor::new(harness.dependencies()).unwrap();
+    let report = monitor.cycle(&Cancellation::default()).await.unwrap();
+    assert!(report.has_errors());
+    assert_eq!(
+        report.errors,
+        vec![provider_api::ProviderError::Transport.to_string()]
+    );
+}
+
+#[tokio::test]
+async fn fatal_candidate_errors_are_not_reduced_to_report_errors() {
+    let harness = Harness::new();
+    let mut monitor = Monitor::new(harness.dependencies()).unwrap();
+    let cancelled = Cancellation::default();
+    cancelled.cancel();
+    let mut report = monitor.cycle(&cancelled).await.unwrap();
+
+    for error in [
+        provider_api::ProviderError::Unauthorized,
+        provider_api::ProviderError::QuotaExhausted,
+    ] {
+        let result = monitor
+            .process_result(
+                fixtures::candidate(),
+                Ok(Err(error.clone())),
+                &Cancellation::default(),
+                &mut report,
+            )
+            .await;
+        assert!(matches!(result, Err(MonitorError::Provider(actual)) if actual == error));
     }
 }

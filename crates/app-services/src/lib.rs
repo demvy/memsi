@@ -28,11 +28,6 @@ pub struct Services {
 }
 
 impl Services {
-    /// Existing validated cache observations only; this handle cannot initiate provider requests.
-    pub fn candle_observations(&self) -> Arc<dyn provider_api::CandleObservationReader> {
-        self.hub.clone()
-    }
-
     pub fn new(provider: Arc<dyn MarketProvider>) -> Result<Self, ProviderError> {
         let hub = Arc::new(DataHub::new(
             provider.clone(),
@@ -83,19 +78,11 @@ async fn read_bounded<T>(
     ctx: &RequestContext,
 ) -> Result<T, ProviderError> {
     ctx.check()?;
-    let cancelled = async {
-        while !ctx.cancellation.is_cancelled() {
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-    };
-
     let read = AssertUnwindSafe(operation).catch_unwind();
     let result = tokio::select! {
-        _ = cancelled => return Err(ProviderError::Cancelled),
-        result = tokio::time::timeout(
-            ctx.deadline.saturating_duration_since(std::time::Instant::now()),
-            read
-        ) => result
+        biased;
+        _ = ctx.cancellation.cancelled() => return Err(ProviderError::Cancelled),
+        result = tokio::time::timeout_at(ctx.deadline.into(), read) => result
             .map_err(|_| ProviderError::Timeout)?
             .map_err(|_| ProviderError::WorkerPanicked)??,
     };

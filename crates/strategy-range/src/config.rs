@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Serialize)]
 pub enum Profile {
     Low,
-    Medium,
     High,
 }
 
@@ -144,7 +143,6 @@ impl Profile {
     pub fn plugin_id(self) -> &'static str {
         match self {
             Self::Low => "strategy.range-low-risk",
-            Self::Medium => "strategy.range-medium-risk",
             Self::High => "strategy.range-high-risk",
         }
     }
@@ -160,16 +158,6 @@ impl Profile {
                 max_width_pct: 20.,
                 activity: 0.8,
                 relative_volume: 0.8,
-            },
-            Self::Medium => Thresholds {
-                liquidity_usd: 150_000.,
-                volume_24h_usd: 250_000.,
-                age_secs: 21_600,
-                resolution_secs: 300,
-                confidence: 0.80,
-                max_width_pct: 30.,
-                activity: 0.65,
-                relative_volume: 0.65,
             },
             Self::High => Thresholds {
                 liquidity_usd: 50_000.,

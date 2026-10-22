@@ -1,5 +1,4 @@
 //! Minimal signal fixture shared by notification and state tests.
-#![allow(dead_code)]
 use domain::*;
 use signal_api::{Signal, SignalDraft, SignalKind};
 

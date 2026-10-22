@@ -4,8 +4,7 @@ use domain::*;
 use provider_api::*;
 use serde_json::json;
 use std::time::{Duration, Instant};
-#[path = "../../../test-support/market.rs"]
-mod fixtures;
+use test_support::market as fixtures;
 
 fn config() -> CodexConfig {
     serde_json::from_value(json!({"api_key":"env:MEMSI_TEST_ABSENT_CODEX_KEY", "network_id":1}))
@@ -86,11 +85,6 @@ fn codex_configuration_and_chain_mapping_are_validated_without_resolving_secrets
     assert!(provider::now().unwrap().get() > 0);
     assert_eq!(provider.transport_observations().unwrap().started, 0);
     assert!(provider.supports_closed_candle_deltas());
-    assert_eq!(
-        PoolDiscoveryProvider::descriptor(&provider).id,
-        descriptor().id
-    );
-    assert_eq!(CandidateSource::descriptor(&provider).id, descriptor().id);
 }
 
 #[tokio::test]
@@ -257,11 +251,14 @@ fn bar_parser_combines_volume_validates_parallel_arrays_and_requires_closed_hist
         assert!(parse::bars(&invalid, &request(), fixtures::timestamp(120_000)).is_err());
     }
 
-    let mut missing_volume = valid;
-    missing_volume["buyVolume"] = json!([null, 20]);
-    let series = parse::bars(&missing_volume, &request(), fixtures::timestamp(120_000)).unwrap();
-    assert!(series.candles[0].volume.as_ref().is_none());
-    assert!(series.candles[0].buy_volume.as_ref().is_none());
+    for field in ["buyVolume", "sellVolume"] {
+        let mut missing_volume = valid.clone();
+        missing_volume[field] = json!([null, 20]);
+        let series =
+            parse::bars(&missing_volume, &request(), fixtures::timestamp(120_000)).unwrap();
+        assert!(series.candles[0].volume.as_ref().is_none());
+        assert!(series.candles[0].buy_volume.as_ref().is_none());
+    }
 }
 
 #[test]
@@ -306,4 +303,55 @@ async fn providers_without_usage_accounting_do_not_claim_notices() {
     };
     assert!(!provider.claim_usage_notice(&usage, true).await.unwrap());
     assert!(provider.api_usage().await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn cancellation_interrupts_a_queued_query_without_waiting_for_a_timer() {
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+    };
+
+    let provider = provider();
+    provider
+        .admission
+        .cooldown(Duration::from_secs(60))
+        .unwrap();
+    let context = context();
+    let mut query =
+        std::pin::pin!(
+            provider.query_at("query {}", json!({}), &context, ":invalid", || panic!(
+                "queued query must not resolve credentials"
+            ),)
+        );
+    let mut task_context = Context::from_waker(Waker::noop());
+    assert!(query.as_mut().poll(&mut task_context).is_pending());
+
+    context.cancellation.cancel();
+
+    assert!(matches!(
+        query.as_mut().poll(&mut task_context),
+        Poll::Ready(Err(ProviderError::Cancelled))
+    ));
+}
+
+#[tokio::test]
+async fn deadline_interrupts_a_queued_query_before_credentials_or_http() {
+    let provider = provider();
+    provider
+        .admission
+        .cooldown(Duration::from_secs(60))
+        .unwrap();
+    let mut context = context();
+    context.deadline = Instant::now() + Duration::from_millis(5);
+    let result = tokio::time::timeout(
+        Duration::from_secs(1),
+        provider.query_at("query {}", json!({}), &context, ":invalid", || {
+            panic!("queued query must not resolve credentials")
+        }),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result, Err(ProviderError::Timeout));
 }

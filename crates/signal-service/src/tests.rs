@@ -5,10 +5,8 @@ use provider_api::{Cancellation, RequestContext};
 use state_api::*;
 use std::sync::{Arc, Mutex};
 use strategy_api::*;
-#[path = "../../../test-support/decision.rs"]
-mod fixtures;
-#[path = "../../../test-support/signal.rs"]
-mod signals;
+use test_support::decision as fixtures;
+use test_support::signal as signals;
 
 struct FixedClock;
 impl Clock for FixedClock {
@@ -323,59 +321,4 @@ fn pump_signal_builder_uses_candle_event_identity_and_rejects_incomplete_evidenc
 
         assert!(pump_signal::build(&invalid, None, FixedClock.now().unwrap()).is_err());
     }
-}
-
-#[tokio::test]
-async fn successful_delivery_emits_a_valid_notification_delivered_event() {
-    struct Events(Mutex<Vec<event_api::EventEnvelope>>);
-    impl event_api::EventPublisher for Events {
-        fn publish(&self, event: event_api::EventEnvelope) -> event_api::PublishReport {
-            self.0.lock().unwrap().push(event);
-            event_api::PublishReport {
-                accepted_subscribers: 1,
-                dropped_subscribers: 0,
-            }
-        }
-    }
-
-    let state = state_memory::MemoryState::new(Default::default()).unwrap();
-    let sink = Arc::new(Sink {
-        id: InstanceId::new("sink").unwrap(),
-        result: Ok(()),
-        calls: Mutex::new(0),
-    });
-    let targets = [DeliveryTarget {
-        sink: sink.id.clone(),
-        destination: "stdout".into(),
-    }];
-    accept(
-        &state,
-        &fixtures::decision(),
-        None,
-        &targets,
-        FixedClock.now().unwrap(),
-    )
-    .await
-    .unwrap();
-    let sinks: delivery::Sinks = [(sink.id.clone(), sink as Arc<dyn NotificationSink>)].into();
-    let events = Events(Mutex::new(vec![]));
-    assert!(
-        delivery::deliver_one_with_events(
-            &state,
-            &sinks,
-            &FixedClock,
-            &Cancellation::default(),
-            &delivery::DeliveryPolicy::default(),
-            &events
-        )
-        .await
-        .unwrap()
-    );
-    let events = events.0.lock().unwrap();
-    assert_eq!(events.len(), 1);
-    assert!(events[0].validate().is_ok());
-    assert!(matches!(
-        events[0].payload,
-        event_api::LifecycleEvent::NotificationDelivered { .. }
-    ));
 }

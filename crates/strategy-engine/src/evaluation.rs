@@ -22,35 +22,9 @@ pub async fn evaluate(
     hub: &DataHub,
     ctx: &RequestContext,
 ) -> Vec<StrategyReport> {
-    evaluate_internal(evaluation, strategies, analyzers, hub, ctx, None).await
-}
-
-pub async fn evaluate_mode(
-    evaluation: &Evaluation<'_>,
-    strategies: &BTreeMap<InstanceId, Box<dyn Strategy>>,
-    analyzers: &BTreeMap<InstanceId, Box<dyn Analyzer>>,
-    hub: &DataHub,
-    ctx: &RequestContext,
-    mode: StrategyMode,
-) -> Vec<StrategyReport> {
-    evaluate_internal(evaluation, strategies, analyzers, hub, ctx, Some(mode)).await
-}
-
-async fn evaluate_internal(
-    evaluation: &Evaluation<'_>,
-    strategies: &BTreeMap<InstanceId, Box<dyn Strategy>>,
-    analyzers: &BTreeMap<InstanceId, Box<dyn Analyzer>>,
-    hub: &DataHub,
-    ctx: &RequestContext,
-    selected_mode: Option<StrategyMode>,
-) -> Vec<StrategyReport> {
     let mut reports = Vec::new();
     let mut plans = Vec::new();
     for (instance, strategy) in strategies {
-        if selected_mode.is_some_and(|mode| strategy.mode() != mode) {
-            continue;
-        }
-
         match catch_unwind(AssertUnwindSafe(|| {
             strategy.prefilter(evaluation.candidate, evaluation.as_of)
         })) {

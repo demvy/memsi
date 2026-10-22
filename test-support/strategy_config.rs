@@ -1,5 +1,4 @@
 //! Minimal research-only strategy config; no providers, runtime, or secrets.
-#![allow(dead_code)]
 use domain::InstanceId;
 use strategy_range::StrategyConfig;
 

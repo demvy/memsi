@@ -10,3 +10,6 @@
 "strategy-api" = { "path" = "../strategy-api" }
 "plugin-api" = { "path" = "../plugin-api" }
 "domain" = { "path" = "../domain" }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

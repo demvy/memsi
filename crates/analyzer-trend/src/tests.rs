@@ -1,6 +1,5 @@
 use super::*;
-#[path = "../../../test-support/market.rs"]
-mod fixtures;
+use test_support::market as fixtures;
 
 fn build_analyzer() -> TrendAnalyzer {
     TrendAnalyzer::new(
@@ -111,13 +110,11 @@ fn analyzer_contract_and_context_check_cutoff_history_and_alignment() {
     assert_eq!(requirements.candles.min_bars, 4);
     assert_eq!(requirements.candles.desired_bars, 4);
     assert!(!requirements.candles.require_volume);
-    assert!(requirements.dependencies.is_empty());
     let mut series = fixtures::series(&[1.0, 2.0, 4.0, 8.0], &[1.0; 4]);
-    let dependencies = ArtifactStore::default();
+
     let analyze = |series: &CandleSeries, as_of| {
         analyzer.analyze(&AnalysisContext {
             candles: series,
-            dependencies: &dependencies,
             as_of,
         })
     };

@@ -17,13 +17,10 @@ pub enum BootstrapError {
     PluginConfig(InstanceId),
     #[error("plugin {0} is in an incompatible configuration section")]
     Section(InstanceId),
-    #[error("this build supports observe and signal modes only")]
-    UnsupportedMode,
 }
 
 /// Offline construction: no credentials, sockets, workers or global registries.
 pub struct Application {
-    pub events: std::sync::Arc<monitor_runtime::events::EventRouter>,
     pub state: StatePlan,
     pub sinks: BTreeMap<InstanceId, std::sync::Arc<dyn notification_api::NotificationSink>>,
     pub delivery_targets: Vec<state_api::DeliveryTarget>,
@@ -58,10 +55,6 @@ pub fn catalog() -> Result<PluginCatalog, RegistryError> {
 
 pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
     config.validate()?;
-    if !matches!(config.mode, AppMode::Observe | AppMode::Signal) {
-        return Err(BootstrapError::UnsupportedMode);
-    }
-
     let catalog = catalog()?;
     #[allow(unused_mut)]
     let mut analyzers: BTreeMap<InstanceId, Box<dyn Analyzer>> = BTreeMap::new();
@@ -194,7 +187,6 @@ pub fn build(config: &AppConfig) -> Result<Application, BootstrapError> {
     }
 
     Ok(Application {
-        events: std::sync::Arc::new(monitor_runtime::events::EventRouter::default()),
         state: state.unwrap_or_default(),
         sinks,
         delivery_targets,
@@ -394,15 +386,6 @@ pub enum StateInspection {
     VolatileProcessStateUnavailable,
 }
 
-impl StatePlan {
-    /// Read counters without claiming work, migration or exclusive ownership.
-    pub async fn inspect(&self) -> Result<StateInspection, state_api::StateError> {
-        match self {
-            Self::Memory => Ok(StateInspection::VolatileProcessStateUnavailable),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -420,34 +403,21 @@ mod tests {
     }
 
     #[test]
-    fn empty_observe_application_builds_offline_and_rejects_unsupported_modes() {
+    fn empty_observe_application_builds_offline_but_signal_mode_needs_sinks() {
         let app = build(&config()).unwrap();
         assert!(app.initialization_order.is_empty());
         assert!(app.strategies.is_empty());
         assert!(app.sinks.is_empty());
-        for mode in [AppMode::Paper, AppMode::Live] {
-            let mut invalid = config();
-            invalid.mode = mode;
-            assert!(matches!(
-                build(&invalid),
-                Err(BootstrapError::UnsupportedMode)
-            ));
-        }
-
         let mut signal = config();
         signal.mode = AppMode::Signal;
         assert!(matches!(build(&signal), Err(BootstrapError::Config(_))));
     }
 
     #[tokio::test]
-    async fn state_plan_opens_fresh_volatile_state_and_inspects_without_claiming_work() {
+    async fn state_plan_opens_fresh_volatile_state() {
         let plan = StatePlan::default();
         let state = plan.open().await.unwrap();
         assert_eq!(state.stats().await.unwrap().signals, 0);
-        assert!(matches!(
-            plan.inspect().await.unwrap(),
-            StateInspection::VolatileProcessStateUnavailable
-        ));
     }
 
     #[test]

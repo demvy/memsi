@@ -89,14 +89,6 @@ fn domain_errors_retain_their_message_when_converted() {
 struct DefaultProvider;
 #[async_trait]
 impl PoolDiscoveryProvider for DefaultProvider {
-    fn descriptor(&self) -> plugin_api::PluginDescriptor {
-        plugin_api::PluginDescriptor {
-            id: PluginId::new("fixture").unwrap(),
-            version: "1".into(),
-            kind: plugin_api::PluginKind::DataProvider,
-            provides: vec![],
-        }
-    }
     async fn pools_for_token(
         &self,
         _: &TokenId,
@@ -171,4 +163,44 @@ async fn default_metric_methods_return_empty_facts_and_validate_batch_identity_a
         warn_at: 9,
     };
     assert!(!provider.claim_usage_notice(&usage, false).await.unwrap());
+}
+
+#[test]
+fn cancellation_wakes_registered_waiters_and_remains_ready_for_late_waiters() {
+    use std::{
+        future::Future,
+        sync::atomic::AtomicUsize,
+        task::{Context, Wake, Waker},
+    };
+
+    #[derive(Default)]
+    struct WakeCounter(AtomicUsize);
+
+    impl Wake for WakeCounter {
+        fn wake(self: Arc<Self>) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    let cancellation = Cancellation::default();
+    let shared = cancellation.clone();
+    let counter = Arc::new(WakeCounter::default());
+    let waker = Waker::from(counter.clone());
+    let mut context = Context::from_waker(&waker);
+    let mut first = std::pin::pin!(cancellation.cancelled());
+    let mut second = std::pin::pin!(shared.cancelled());
+    assert!(first.as_mut().poll(&mut context).is_pending());
+    assert!(second.as_mut().poll(&mut context).is_pending());
+
+    shared.cancel();
+
+    assert_eq!(counter.0.load(Ordering::Relaxed), 2);
+    assert!(first.as_mut().poll(&mut context).is_ready());
+    assert!(second.as_mut().poll(&mut context).is_ready());
+    assert!(
+        std::pin::pin!(shared.cancelled())
+            .as_mut()
+            .poll(&mut context)
+            .is_ready()
+    );
 }

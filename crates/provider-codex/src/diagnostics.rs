@@ -42,41 +42,15 @@ pub(super) fn failure(
     elapsed: Duration,
     retrying: bool,
 ) {
-    eprintln!("{}", record(category, status, attempt, elapsed, retrying));
-}
-
-fn record(
-    category: &'static str,
-    status: Option<u16>,
-    attempt: u32,
-    elapsed: Duration,
-    retrying: bool,
-) -> serde_json::Value {
-    serde_json::json!({
-        "event": "codex_request_failed",
-        "category": category,
-        "http_status": status,
-        "attempt": attempt + 1,
-        "elapsed_ms": elapsed.as_millis().min(u64::MAX as u128) as u64,
-        "retrying": retrying,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn diagnostic_records_are_bounded_structured_and_use_one_based_attempts() {
-        let value = record("http_status", Some(503), 1, Duration::from_millis(42), true);
-        assert_eq!(
-            value,
-            serde_json::json!({"event":"codex_request_failed","category":"http_status","http_status":503,"attempt":2,"elapsed_ms":42,"retrying":true})
-        );
-        let value = record("transport", None, 0, Duration::MAX, false);
-        assert_eq!(value["elapsed_ms"], u64::MAX);
-        assert!(value["http_status"].is_null());
-    }
+    tracing::warn!(
+        event = "codex_request_failed",
+        category,
+        http_status = status,
+        attempt = attempt.saturating_add(1),
+        elapsed_ms = elapsed.as_millis().min(u64::MAX as u128) as u64,
+        retrying,
+        "Codex request failed"
+    );
 }
 
 #[cfg(test)]

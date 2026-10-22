@@ -1,6 +1,7 @@
 use super::*;
 use analysis_api::Analyzer;
 use domain::*;
+pub(super) use provider::market as fixtures;
 use provider_api::*;
 use std::{
     collections::BTreeMap,
@@ -8,11 +9,8 @@ use std::{
     time::{Duration, Instant},
 };
 use strategy_api::*;
-#[path = "../../../test-support/provider.rs"]
-pub(super) mod provider;
-pub(super) use provider::market as fixtures;
-#[path = "../../../test-support/strategy_config.rs"]
-mod strategy_config;
+pub(super) use test_support::provider;
+use test_support::strategy_config;
 
 fn strategies() -> BTreeMap<InstanceId, Box<dyn Strategy>> {
     [(
@@ -70,8 +68,8 @@ fn planner_combines_requirements_and_rejects_missing_analyzers() {
     let mut analyzers = analyzers();
     let strategy = strategies.values().next().unwrap().as_ref();
     let plan = planner::plan(strategy, &analyzers).unwrap();
-    assert!(plan.range.is_some());
-    assert!(plan.volume.is_some());
+    assert_eq!(plan.range.instance().as_str(), "range");
+    assert_eq!(plan.volume.instance().as_str(), "volume");
     assert!(plan.trend.is_none());
     assert!(plan.candles.require_volume);
     assert!(plan.candles.desired_bars >= plan.candles.min_bars);
@@ -118,19 +116,6 @@ async fn engine_evaluates_real_analyzers_and_strategy_with_validated_evidence() 
     assert!(decision.evidence.volume.is_some());
     assert_eq!(decision.token, candidate.token);
     assert_eq!(decision.pool, Some(fixtures::pool_id(10)));
-    assert_eq!(report.may_notify(), decision.verdict == Verdict::Match);
-    assert!(
-        evaluate_mode(
-            &evaluation,
-            &strategies,
-            &analyzers,
-            &hub,
-            &context(),
-            StrategyMode::Shadow
-        )
-        .await
-        .is_empty()
-    );
 }
 
 #[tokio::test]
@@ -165,7 +150,6 @@ async fn engine_reports_cancelled_context_and_no_usable_pools() {
             .unwrap()
             .contains("no usable pool")
     );
-    assert!(!reports[0].may_notify());
     let cancelled = context();
     cancelled.cancellation.cancel();
     let reports = evaluate(&evaluation, &strategies(), &analyzers(), &hub, &cancelled).await;
@@ -213,12 +197,12 @@ fn token_metric_screening_distinguishes_missing_failed_and_passing_filters() {
 }
 
 #[test]
-fn unavailable_reports_retain_probe_reasons_and_never_authorize_notifications() {
+fn unavailable_reports_retain_probe_reasons_without_a_decision() {
     let instance = InstanceId::new("strategy").unwrap();
     let mut report = StrategyReport::unavailable(&instance, "no usable pool");
     report.record(&fixtures::pool_id(10), "provider unavailable");
     assert_eq!(report.trace.len(), 1);
     assert_eq!(report.trace[0].pool, fixtures::pool_id(10));
     assert_eq!(report.trace[0].reason, "provider unavailable");
-    assert!(!report.may_notify());
+    assert!(report.decision.is_none());
 }

@@ -8,7 +8,5 @@
 [dependencies]
 "domain" = { "path" = "../domain" }
 "provider-api" = { "path" = "../provider-api" }
-"plugin-api" = { "path" = "../plugin-api" }
 "serde" = { "version" = "1", "features" = ["derive"] }
-"thiserror" = "2"
 "async-trait" = "0.1"

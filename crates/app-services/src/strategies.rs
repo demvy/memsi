@@ -108,7 +108,7 @@ impl Services {
         };
 
         let screened_at = self.evaluation_time()?;
-        candidate.metrics = metrics.clone();
+        candidate.metrics = metrics;
         let screened: Option<Vec<_>> = strategies
             .values()
             .map(|strategy| {
@@ -131,15 +131,7 @@ impl Services {
 
         let pools = self.list_pools(token, ctx).await?;
         let as_of = self.evaluation_time()?;
-        let candidate = Candidate {
-            metrics: metrics.clone(),
-            token: token.clone(),
-            pool_hints: vec![],
-            symbol: None,
-            discovered_at: as_of,
-            source: ProviderId::new("manual").unwrap(),
-            liquidity_usd: Knowledge::unknown(),
-        };
+        candidate.discovered_at = as_of;
 
         let evaluation = Evaluation {
             candidate: &candidate,

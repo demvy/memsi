@@ -172,9 +172,10 @@ impl UsageLedger {
         }
         .await;
         if result.is_ok() {
-            self.memory_initialized.store(true, Ordering::Relaxed);
             *slot = Some(connection);
         } else {
+            // Reopening an in-memory ledger would forget charges already admitted.
+            // Persistent databases can reconnect without losing their accounting.
             let _ = connection.close().await;
         }
 
@@ -361,6 +362,35 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(ledger.status_at("other-key", now).await.unwrap().used, 0);
+    }
+
+    #[tokio::test]
+    async fn in_memory_database_stays_unavailable_after_charge_failure() {
+        let ledger = UsageLedger::new(config());
+        assert!(ledger.charge("key").await.unwrap());
+
+        {
+            let mut slot = ledger.connection().await.unwrap();
+            let connection = slot.as_mut().unwrap();
+            sqlx::query("DROP TABLE api_usage")
+                .execute(connection)
+                .await
+                .unwrap();
+        }
+
+        assert_eq!(
+            ledger.charge("key").await,
+            Err(ProviderError::UsageAccountingUnavailable)
+        );
+
+        assert_eq!(
+            ledger.charge("key").await,
+            Err(ProviderError::UsageAccountingUnavailable)
+        );
+        assert!(matches!(
+            ledger.status("key").await,
+            Err(ProviderError::UsageAccountingUnavailable)
+        ));
     }
 
     #[tokio::test]

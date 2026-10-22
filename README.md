@@ -74,7 +74,7 @@ fallback_api_keys = [] # e.g. ["env:CODEX_BACKUP_API_KEY"]
 monthly_limit = 10000
 warn_at = 9000
 reset_day = 1
- database = "api-usage.sqlite"
+database = "api-usage.sqlite"
 ```
 
 | Field | Default | Meaning |
@@ -110,7 +110,7 @@ Solana is the default. Network selection updates both chain identity and Codex n
 ./target/release/memes_finder config-check --config /path/to/memes-finder.toml
 ```
 
-`meme-monitor`, built from `app-cli`, is an alternative executable for the same CLI. Tools such as `range-check` run separate checks rather than another monitoring loop.
+The workspace builds one executable, `memes_finder`. Run `--help` to see the available commands.
 
 ## Strategy reference
 
@@ -118,7 +118,9 @@ The compact multi-strategy format names **definitions** and **profiles** freely.
 
 ### Small-cap pump example
 
-The `pump_high` handler signals when the close has gained more than `min_gain_pct` over five completed one-minute intervals. The latest completed candle must be green and close above the previous close. All token filters also need to pass. This is an example for testing alerts; tune the limits before monitoring.
+The `pump_high` handler signals when the close has gained more than `min_gain_pct` over five completed one-minute intervals. The latest completed candle must be green and close above the previous close. All token filters also need to pass.
+
+The profiles, strategies, and parameter values shipped in `strategies.toml` and shown below are for testing purposes only. Define your own profiles and strategies and choose their thresholds before using the monitor.
 
 ```toml
 # Example pump screening for small-cap tokens. Telegram is configured separately.
@@ -132,7 +134,7 @@ market_cap_usd = { gt = 200000, lt = 3000000 }
 total_liquidity_usd = { gt = 20000 }
 
 [profiles.high.filters]
-volume_5m_to_liquidity = { gt = 0.45 }
+volume_5m_to_liquidity = { gt = 0.1 }
 
 [[strategies]]
 id = "pump"
@@ -142,7 +144,7 @@ context_bars = 20
 min_gain_pct = 10.0
 ```
 
-This configuration creates the `pump-high` instance. Market-cap bounds are strict: $200,000 < MCap < $3,000,000. Total liquidity must exceed $20,000 and five-minute trading volume / liquidity must exceed 0.45. The ratio uses total traded volume; candle colour does not identify actual buyer-initiated volume.
+This configuration creates the `pump-high` instance. Market-cap bounds are strict: $200,000 < MCap < $3,000,000. Total liquidity must exceed $20,000 and five-minute trading volume / liquidity must exceed 0.1. The ratio uses total traded volume; candle colour does not identify actual buyer-initiated volume.
 
 ### Common options and inheritance
 
@@ -318,4 +320,8 @@ There is no runtime library loading. Keep private thresholds in local configurat
 
 Signals, duplicate suppression, the delivery outbox, candles and watchlist records live in memory. Restarting clears this state. API usage is persisted in SQLite through SQLx so per-key quota accounting survives restarts.
 
-The workspace builds one binary, `memes_finder`. See [arch.md](arch.md) for module boundaries.
+The workspace builds one binary, `memes_finder`. See [arch.md](docs/arch.md) for module boundaries.
+
+## Future work
+
+- TODO: add lifecycle event subscriptions when a UI or another runtime consumer needs them.

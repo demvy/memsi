@@ -1,7 +1,4 @@
-use crate::{
-    CodexProvider, parse,
-    provider::{descriptor, now},
-};
+use crate::{CodexProvider, parse, provider::now};
 
 use async_trait::async_trait;
 use discovery_api::*;
@@ -97,10 +94,6 @@ impl PoolDiscoveryProvider for CodexProvider {
         ctx: &RequestContext,
     ) -> Result<std::collections::BTreeMap<TokenId, TokenMetrics>, ProviderError> {
         self.read_token_metrics_batch(tokens, metrics, ctx).await
-    }
-
-    fn descriptor(&self) -> plugin_api::PluginDescriptor {
-        descriptor()
     }
 
     async fn pools_for_token(
@@ -206,10 +199,6 @@ impl CandleProvider for CodexProvider {
 
 #[async_trait]
 impl CandidateSource for CodexProvider {
-    fn descriptor(&self) -> plugin_api::PluginDescriptor {
-        descriptor()
-    }
-
     async fn poll(
         &self,
         query: &DiscoveryQuery,

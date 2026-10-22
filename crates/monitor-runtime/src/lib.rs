@@ -4,18 +4,14 @@ mod checkpoint;
 mod cycle;
 mod diagnostics;
 pub use diagnostics::MonitorDiagnostics;
-pub mod events;
 mod lifecycle;
 mod scheduling;
-mod status;
-pub use status::RuntimeStatus;
 const PANIC_LIMIT: u8 = 3;
 use analysis_api::Analyzer;
 use app_config::{AppConfig, AppMode};
 use app_services::Services;
 use discovery_api::{CandidateSource, DiscoveryCursor, DiscoveryQuery};
 use domain::*;
-use event_api::{EventEnvelope, EventPublisher, LifecycleEvent};
 use futures::{FutureExt, StreamExt, stream};
 use provider_api::{Cancellation, RequestContext};
 use signal_service::{
@@ -27,14 +23,26 @@ use state_api::{Acceptance, DeliveryTarget, StateError, StateStats, StateStore, 
 use std::{
     collections::BTreeMap,
     panic::AssertUnwindSafe,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use strategy_api::Strategy;
+#[derive(Debug, thiserror::Error)]
+pub enum MonitorError {
+    #[error(transparent)]
+    State(#[from] StateError),
+    #[error(transparent)]
+    Provider(#[from] provider_api::ProviderError),
+}
+
+fn fatal_provider_error(error: &provider_api::ProviderError) -> bool {
+    matches!(
+        error,
+        provider_api::ProviderError::Unauthorized | provider_api::ProviderError::QuotaExhausted
+    )
+}
+
 pub struct Dependencies<'a> {
     pub config: &'a AppConfig,
     pub services: &'a Services,
@@ -61,10 +69,6 @@ pub struct Monitor<'a> {
     sequence: u64,
     source_panics: u8,
     candidate_panics: BTreeMap<TokenId, u8>,
-    events: Arc<events::EventRouter>,
-    event_scope: ContentHash,
-    event_sequence: u64,
-    status: Arc<RuntimeStatus>,
     diagnostics: Option<Arc<dyn MonitorDiagnostics>>,
 }
 
@@ -83,15 +87,12 @@ pub struct CycleReport {
     pub worker_panics: usize,
     pub discovery_quarantined: bool,
     pub quarantined_candidates: usize,
-    pub event_enqueued: usize,
-    pub event_dropped: usize,
     pub state: StateStats,
 }
 
-impl Drop for Monitor<'_> {
-    fn drop(&mut self) {
-        self.status.stop();
-        let _ = self.events.close();
+impl CycleReport {
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty() || self.muted_errors > 0
     }
 }
 
@@ -106,10 +107,7 @@ impl<'a> Monitor<'a> {
             .config
             .validate()
             .map_err(|_| StateError::InvalidRequest)?;
-        if dependencies.strategies.is_empty()
-            || dependencies.strategies.len() > 64
-            || !matches!(dependencies.config.mode, AppMode::Observe | AppMode::Signal)
-        {
+        if dependencies.strategies.is_empty() || dependencies.strategies.len() > 64 {
             return Err(StateError::InvalidRequest);
         }
 
@@ -172,18 +170,6 @@ impl<'a> Monitor<'a> {
             &dependencies.source_instance,
         ))
         .map_err(|_| StateError::InvalidRequest)?;
-        static NEXT_RUN: AtomicU64 = AtomicU64::new(0);
-        let event_scope = ContentHash::of(&(
-            "monitor.events.v1",
-            &checkpoint_scope,
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos(),
-            NEXT_RUN.fetch_add(1, Ordering::Relaxed),
-        ))
-        .map_err(|_| StateError::InvalidRequest)?;
         Ok(Self {
             checkpoint_scope,
             restored: false,
@@ -197,31 +183,12 @@ impl<'a> Monitor<'a> {
             sequence: 0,
             source_panics: 0,
             candidate_panics: BTreeMap::new(),
-            events: Arc::new(events::EventRouter::default()),
-            event_scope,
-            event_sequence: 0,
-            status: Arc::new(RuntimeStatus::default()),
             diagnostics: None,
         })
     }
 
-    pub fn runtime_status(&self) -> Arc<RuntimeStatus> {
-        self.status.clone()
-    }
-
     pub fn with_diagnostics(mut self, diagnostics: Arc<dyn MonitorDiagnostics>) -> Self {
         self.diagnostics = Some(diagnostics);
-        self
-    }
-
-    /// Subscribers own independent bounded receivers; they cannot veto core work.
-    pub fn events(&self) -> Arc<events::EventRouter> {
-        self.events.clone()
-    }
-
-    /// Bind the host's per-run registry before starting producers.
-    pub fn with_events(mut self, events: Arc<events::EventRouter>) -> Self {
-        self.events = events;
         self
     }
 
@@ -233,21 +200,6 @@ impl<'a> Monitor<'a> {
             .values()
             .filter(|count| **count >= PANIC_LIMIT)
             .count();
-    }
-
-    fn emit(&mut self, payload: LifecycleEvent, at: TimestampMs, report: &mut CycleReport) {
-        let Some(sequence) = self.event_sequence.checked_add(1) else {
-            return;
-        };
-
-        self.event_sequence = sequence;
-        if let Ok(event) =
-            EventEnvelope::new(at, self.event_scope.as_str().to_owned(), sequence, payload)
-        {
-            let published = self.events.publish(event);
-            report.event_enqueued += published.accepted_subscribers;
-            report.event_dropped += published.dropped_subscribers;
-        }
     }
 }
 

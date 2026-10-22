@@ -27,7 +27,7 @@ impl Monitor<'_> {
         now: TimestampMs,
         cancellation: &Cancellation,
         report: &mut CycleReport,
-    ) -> Result<(), StateError> {
+    ) -> Result<(), MonitorError> {
         self.next_discovery = now
             .checked_add(self.dependencies.config.monitor.poll_interval_secs as i64 * 1000)
             .map_err(|_| StateError::InvalidRequest)?;
@@ -58,6 +58,10 @@ impl Monitor<'_> {
         {
             Ok(Ok(batch)) => batch,
             Ok(Err(error)) => {
+                if fatal_provider_error(&error) {
+                    return Err(error.into());
+                }
+
                 if matches!(error, provider_api::ProviderError::WorkerPanicked) {
                     self.source_panics = self.source_panics.saturating_add(1);
                     report.worker_panics += 1;
@@ -118,13 +122,6 @@ impl Monitor<'_> {
             }
 
             report.discovered += 1;
-            self.emit(
-                LifecycleEvent::CandidateObserved {
-                    token: candidate.token.clone(),
-                },
-                now,
-                report,
-            );
             if self.screened_watchlist() {
                 if let Some(entry) = self.watch.get_mut(&candidate.token) {
                     entry.last_seen = now;
@@ -158,48 +155,40 @@ impl Monitor<'_> {
     }
 
     pub(super) fn due_candidates(&mut self, now: TimestampMs) -> Vec<Candidate> {
-        let fresh: Vec<_> = self.pending_screening.keys().take(100).cloned().collect();
-        let mut candidates: Vec<_> = fresh
-            .iter()
-            .filter_map(|token| self.pending_screening.remove(token))
-            .collect();
         if self.screened_watchlist() {
-            return candidates;
+            let tokens: Vec<_> = self.pending_screening.keys().take(100).cloned().collect();
+            return tokens
+                .iter()
+                .filter_map(|token| self.pending_screening.remove(token))
+                .collect();
         }
 
-        let selected: std::collections::BTreeSet<_> =
-            candidates.iter().map(|c| c.token.clone()).collect();
         let mut due: Vec<_> = self
             .watch
             .values()
             .filter(|entry| {
-                !selected.contains(&entry.candidate.token)
-                    && entry.next_due <= now
+                entry.next_due <= now
                     && self
                         .candidate_panics
                         .get(&entry.candidate.token)
                         .is_none_or(|count| *count < PANIC_LIMIT)
             })
             .collect();
-        let batch_size = if self.screened_watchlist() {
-            100
-        } else {
-            self.dependencies.config.monitor.candidate_workers
-        };
+        let batch_size = self.dependencies.config.monitor.candidate_workers;
 
-        let batch_size = batch_size.saturating_sub(candidates.len());
         if due.len() > batch_size {
-            due.select_nth_unstable_by(batch_size, |a, b| watch_order(a, b));
+            due.select_nth_unstable_by(batch_size, |a, b| compare_watch_records(a, b));
             due.truncate(batch_size);
         }
 
-        due.sort_unstable_by(|a, b| watch_order(a, b));
-        candidates.extend(due.into_iter().map(|entry| entry.candidate.clone()));
-        candidates
+        due.sort_unstable_by(|a, b| compare_watch_records(a, b));
+        due.into_iter()
+            .map(|entry| entry.candidate.clone())
+            .collect()
     }
 }
 
-fn watch_order(a: &WatchRecord, b: &WatchRecord) -> std::cmp::Ordering {
+fn compare_watch_records(a: &WatchRecord, b: &WatchRecord) -> std::cmp::Ordering {
     (a.next_due, a.order, &a.candidate.token).cmp(&(b.next_due, b.order, &b.candidate.token))
 }
 

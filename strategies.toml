@@ -1,4 +1,5 @@
-# Example pump screening for small-cap tokens. Telegram is configured separately.
+# Testing example only: define your own profiles, strategies, and thresholds before use.
+# Telegram is configured separately.
 logging = true
 filter_interval_minutes = 3
 timeframe_secs = 60

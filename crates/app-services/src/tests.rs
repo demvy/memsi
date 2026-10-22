@@ -1,11 +1,9 @@
 use super::*;
+pub(super) use provider::market as fixtures;
 use std::{sync::atomic::Ordering, time::Instant};
 use strategy_api::{Strategy, StrategyMode};
-#[path = "../../../test-support/provider.rs"]
-pub(super) mod provider;
-pub(super) use provider::market as fixtures;
-#[path = "../../../test-support/strategy_config.rs"]
-mod strategy_config;
+pub(super) use test_support::provider;
+use test_support::strategy_config;
 
 fn context() -> RequestContext {
     RequestContext {
@@ -61,15 +59,6 @@ async fn services_validate_pool_membership_and_bound_provider_panics() {
             .is_err()
     );
     assert_eq!(services.stats().upstream_attempts, 0);
-    assert!(
-        services
-            .candle_observations()
-            .candle_observations(&fixtures::token(1), 1)
-            .await
-            .unwrap()
-            .series
-            .is_empty()
-    );
     let services = Services::new(Arc::new(provider::Provider {
         panic: true,
         ..Default::default()

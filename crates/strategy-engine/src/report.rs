@@ -1,6 +1,6 @@
 use domain::{InstanceId, PoolId};
 use serde::Serialize;
-use strategy_api::{DecisionReason, StrategyDecision, StrategyMode, Verdict};
+use strategy_api::{DecisionReason, StrategyDecision};
 #[derive(Debug, Serialize)]
 pub struct ProbeTrace {
     pub pool: PoolId,
@@ -33,13 +33,6 @@ impl StrategyReport {
             pool: pool.clone(),
             reason: reason.to_string(),
         });
-    }
-
-    /// Delivery must still pass SignalService policies and deduplication.
-    pub fn may_notify(&self) -> bool {
-        self.decision.as_ref().is_some_and(|decision| {
-            decision.verdict == Verdict::Match && decision.mode == StrategyMode::Active
-        })
     }
 }
 

@@ -19,10 +19,24 @@ fn shipped_config() -> PathBuf {
 fn executable_help_version_and_argument_errors_have_expected_exit_codes() {
     assert!(cli(&["--help"]).status.success());
     assert!(cli(&["--version"]).status.success());
-    let invalid = cli(&["--error-json", "unknown-command"]);
-    assert!(!invalid.status.success());
-    let stderr = String::from_utf8(invalid.stderr).unwrap();
-    assert!(stderr.contains("\"code\":\"invalid_request\""));
+    for arguments in [
+        vec!["--error-json", "unknown-command"],
+        vec!["--error-json", "--network", "unknown", "config-check"],
+        vec!["config-check", "--error-json", "--unknown-option"],
+    ] {
+        let invalid = cli(&arguments);
+        assert!(!invalid.status.success());
+        let error: serde_json::Value = serde_json::from_slice(&invalid.stderr).unwrap();
+        assert_eq!(error["code"], "invalid_request");
+        assert_eq!(error["message"], "invalid command arguments");
+    }
+
+    let invalid = cli(&["unknown-command"]);
+    assert!(
+        String::from_utf8(invalid.stderr)
+            .unwrap()
+            .contains("unrecognized subcommand")
+    );
     assert!(
         !cli(&["--network", "unknown", "config-check"])
             .status
@@ -57,11 +71,11 @@ fn offline_commands_validate_configuration_and_emit_public_envelopes() {
         "/nonexistent/memsi-config.toml",
     ]);
     assert!(!failure.status.success());
-    assert!(
-        String::from_utf8(failure.stderr)
-            .unwrap()
-            .contains("\"code\":\"command_failed\"")
-    );
+    let error: serde_json::Value = serde_json::from_slice(&failure.stderr).unwrap();
+    assert_eq!(error["code"], "command_failed");
+    assert_eq!(error["level"], "ERROR");
+    assert_eq!(error["message"], "command failed");
+    assert!(error["request_id"].as_str().unwrap().starts_with("cli-"));
 }
 
 #[test]
@@ -103,7 +117,13 @@ fn one_monitor_cycle_reports_missing_credentials_without_network_access() {
     let config =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/offline-monitor.toml");
     let output = Command::new(env!("CARGO_BIN_EXE_memes_finder"))
-        .args(["monitor", "--once", "--config", config.to_str().unwrap()])
+        .args([
+            "--error-json",
+            "monitor",
+            "--once",
+            "--config",
+            config.to_str().unwrap(),
+        ])
         .current_dir(&directory)
         .env_clear()
         .env("MEMSI_TEST_EMPTY_API_KEY", "")
@@ -112,12 +132,19 @@ fn one_monitor_cycle_reports_missing_credentials_without_network_access() {
         .unwrap();
     std::fs::remove_dir_all(&directory).unwrap();
     assert!(
-        output.status.success(),
+        !output.status.success(),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
     let diagnostic = String::from_utf8(output.stderr).unwrap();
-    assert!(diagnostic.contains("\"discovered\":0"));
-    assert!(diagnostic.contains("unauthorized"));
-    assert!(diagnostic.contains("\"http_attempts_total\":0"));
+    let records: Vec<serde_json::Value> = diagnostic
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("each log line must be valid JSON"))
+        .collect();
+    let error = records
+        .iter()
+        .find(|record| record["code"] == "command_failed")
+        .unwrap();
+    assert_eq!(error["level"], "ERROR");
+    assert_eq!(error["message"], "command failed");
 }

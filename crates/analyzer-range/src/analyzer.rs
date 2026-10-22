@@ -1,4 +1,5 @@
 use crate::RangeConfig;
+use analysis_api::identifiers;
 use analysis_api::*;
 use analysis_model::{RangeAnalysis, RangeBounds, RangeState};
 use domain::*;
@@ -52,8 +53,8 @@ impl RangeAnalyzer {
             version: env!("CARGO_PKG_VERSION").into(),
             kind: plugin_api::PluginKind::Analyzer,
             provides: vec![plugin_api::Capability::pure(
-                CapabilityId::new("analysis.range").unwrap(),
-                1,
+                CapabilityId::new(identifiers::RANGE_SCHEMA).unwrap(),
+                identifiers::SCHEMA_MAJOR,
             )],
         }
     }
@@ -81,7 +82,6 @@ impl Analyzer for RangeAnalyzer {
                 desired_bars: self.desired_bars,
                 require_volume: false,
             },
-            dependencies: vec![],
         }
     }
 

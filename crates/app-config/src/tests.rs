@@ -41,6 +41,13 @@ fn configuration_rejects_unknown_fields_versions_chains_and_duplicate_instances(
         ))
         .is_err()
     );
+    for mode in ["paper", "live"] {
+        let input = toml::to_string(&preset())
+            .unwrap()
+            .replace("mode = \"signal\"", &format!("mode = \"{mode}\""));
+        assert!(AppConfig::parse(&input).is_err());
+    }
+
     let mut config = preset();
     config.schema_version = 2;
     assert!(config.validate().is_err());
@@ -257,11 +264,11 @@ fn loading_reports_missing_files_and_gives_cli_overrides_precedence() {
     let environment = BTreeMap::from([("MEME__MONITOR__POLL_INTERVAL_SECS".into(), "31".into())]);
     let cli = BTreeMap::from([
         ("MEME__MONITOR__POLL_INTERVAL_SECS".into(), "32".into()),
-        ("MEME__MODE".into(), "paper".into()),
+        ("MEME__MODE".into(), "observe".into()),
     ]);
     let config = AppConfig::load(&path, &environment, &cli).unwrap();
     assert_eq!(config.monitor.poll_interval_secs, 32);
-    assert_eq!(config.mode, AppMode::Paper);
+    assert_eq!(config.mode, AppMode::Observe);
     for key in ["UNKNOWN", "MEME__UNKNOWN"] {
         assert!(matches!(
             AppConfig::load(

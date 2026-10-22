@@ -1,8 +1,6 @@
 use super::*;
 use domain::*;
-use signal_api::*;
-#[path = "../../../test-support/signal.rs"]
-mod fixtures;
+use test_support::signal as fixtures;
 
 fn notification() -> Notification {
     Notification {
@@ -21,13 +19,9 @@ fn text_rendering_cleans_controls_escapes_html_and_preserves_unicode() {
     let html = telegram_html(&notification);
     assert!(html.contains("&lt;A&amp;&quot;B&gt;🦀"));
     assert!(!html.contains('\u{202e}'));
-    let plain = plain_text(&notification);
-    assert!(plain.contains("<A&\"B>🦀"));
-    assert!(plain.contains("Research match"));
     assert!(summary_text(&notification).contains("RESEARCH_MATCH"));
     notification.signal.kind = SignalKind::LpCandidate;
     assert!(summary_text(&notification).contains("LP_CANDIDATE"));
-    assert!(plain_text(&notification).contains("LP candidate"));
     notification.signal.kind = SignalKind::ResearchMatch;
     notification.signal.reasons.push("PUMP_HIGH".into());
     assert!(summary_text(&notification).contains("PUMP_HIGH"));
@@ -108,77 +102,4 @@ fn fixed_link_mappings_support_known_chains_and_reject_unknown_networks() {
         assert_eq!(defined_url(&signal).is_some(), supported);
         assert_eq!(chain_name(&signal), "Solana");
     }
-}
-
-#[test]
-fn detailed_rendering_includes_all_fact_types_warnings_and_only_allowed_links() {
-    let mut notification = notification();
-    notification.signal.warnings.push("RESEARCH_ONLY".into());
-    notification.signal.reasons.push("RANGE_CONFIRMED".into());
-    notification.signal.facts = vec![
-        SignalFact::Money {
-            label: "Liquidity".into(),
-            usd: NonNegative::new(1000.0).unwrap(),
-            window_secs: Some(60),
-        },
-        SignalFact::Money {
-            label: "Fees".into(),
-            usd: NonNegative::new(10.0).unwrap(),
-            window_secs: None,
-        },
-        SignalFact::Range {
-            lower: PositivePrice::new(1.0).unwrap(),
-            upper: PositivePrice::new(2.0).unwrap(),
-            unit: PriceUnit::UsdPerToken,
-        },
-        SignalFact::Range {
-            lower: PositivePrice::new(1.0).unwrap(),
-            upper: PositivePrice::new(2.0).unwrap(),
-            unit: PriceUnit::QuotePerToken {
-                quote: notification.signal.token.clone(),
-            },
-        },
-        SignalFact::Confidence {
-            value: UnitInterval::new(0.85).unwrap(),
-        },
-        SignalFact::Text {
-            label: "Note".into(),
-            value: "value".into(),
-        },
-    ];
-    notification.links = vec![
-        SignalLink {
-            label: "Token".into(),
-            url: "https://etherscan.io/token/valid".into(),
-        },
-        SignalLink {
-            label: "Bad".into(),
-            url: "https://example.com/".into(),
-        },
-        SignalLink {
-            label: "Control".into(),
-            url: "https://etherscan.io/\n".into(),
-        },
-    ];
-    let text = plain_text(&notification);
-    for expected in [
-        "Warning: RESEARCH_ONLY",
-        "+ range confirmed",
-        "Liquidity: $1000 / 60s",
-        "Fees: $10",
-        "USD/token",
-        "per token",
-        "Confidence: 85.0%",
-        "Note: value",
-        "https://etherscan.io/token/valid",
-    ] {
-        assert!(text.contains(expected), "missing {expected}");
-    }
-    assert!(!text.contains("example.com"));
-    assert!(!text.contains("Control:"));
-    let mut long = "x".repeat(3498);
-    append(&mut long, "🦀");
-    assert_eq!(long.len(), 3498);
-    append(&mut long, "a");
-    assert_eq!(long.len(), 3500);
 }

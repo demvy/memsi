@@ -1,12 +1,10 @@
 //! In-process market provider for service and engine tests.
-#![allow(dead_code)]
 use async_trait::async_trait;
 use domain::*;
 use provider_api::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[path = "market.rs"]
-pub mod market;
+pub use crate::market;
 
 pub struct Provider {
     pub pool_calls: AtomicUsize,
@@ -77,14 +75,6 @@ impl CandleProvider for Provider {
 
 #[async_trait]
 impl PoolDiscoveryProvider for Provider {
-    fn descriptor(&self) -> plugin_api::PluginDescriptor {
-        plugin_api::PluginDescriptor {
-            id: PluginId::new("provider.fixture").unwrap(),
-            version: "1".into(),
-            kind: plugin_api::PluginKind::DataProvider,
-            provides: vec![],
-        }
-    }
     async fn token_metrics(
         &self,
         _: &TokenId,

@@ -102,12 +102,6 @@ impl Services {
         for analyzer in selected {
             ctx.check()?;
             let requirement = analyzer.requirements(request.resolution, PriceUnit::UsdPerToken);
-            if !requirement.dependencies.is_empty() {
-                return Err(ProviderError::Unsupported(
-                    "analyzer dependency planner".into(),
-                ));
-            }
-
             let n = requirement.candles.desired_bars;
             if n == 0
                 || n > 1500
@@ -149,10 +143,8 @@ impl Services {
 
                 match self.hub.candles(&candles, ctx).await {
                     Ok(series) => {
-                        let artifacts = ArtifactStore::default();
                         match analyzer.analyze(&AnalysisContext {
                             candles: &series,
-                            dependencies: &artifacts,
                             as_of,
                         }) {
                             Ok(value) => {

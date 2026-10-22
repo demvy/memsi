@@ -1,7 +1,10 @@
 use super::*;
 use crate::scheduling::{expire_watch, watch_retention_ms};
 impl Monitor<'_> {
-    pub async fn cycle(&mut self, cancellation: &Cancellation) -> Result<CycleReport, StateError> {
+    pub async fn cycle(
+        &mut self,
+        cancellation: &Cancellation,
+    ) -> Result<CycleReport, MonitorError> {
         self.cycle_with_delivery(cancellation, true).await
     }
 
@@ -9,18 +12,7 @@ impl Monitor<'_> {
         &mut self,
         cancellation: &Cancellation,
         deliver: bool,
-    ) -> Result<CycleReport, StateError> {
-        let guard = self.status.begin(self.dependencies.clock.now().ok());
-        let result = self.cycle_inner(cancellation, deliver).await;
-        guard.finish(&result, self.dependencies.clock.now().ok());
-        result
-    }
-
-    pub(super) async fn cycle_inner(
-        &mut self,
-        cancellation: &Cancellation,
-        deliver: bool,
-    ) -> Result<CycleReport, StateError> {
+    ) -> Result<CycleReport, MonitorError> {
         let now = self.dependencies.clock.now()?;
         let mut report = CycleReport {
             discovered: 0,
@@ -38,8 +30,6 @@ impl Monitor<'_> {
                 .values()
                 .filter(|count| **count >= PANIC_LIMIT)
                 .count(),
-            event_enqueued: 0,
-            event_dropped: 0,
             state: self.dependencies.state.stats().await?,
         };
 
@@ -111,13 +101,12 @@ impl Monitor<'_> {
 
         if deliver && self.dependencies.config.mode == AppMode::Signal {
             for _ in 0..16 {
-                if !signal_service::delivery::deliver_one_with_events(
+                if !signal_service::delivery::deliver_one(
                     self.dependencies.state,
                     self.dependencies.sinks,
                     self.dependencies.clock,
                     cancellation,
                     &DeliveryPolicy::default(),
-                    self.events.as_ref(),
                 )
                 .await?
                 {

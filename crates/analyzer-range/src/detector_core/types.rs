@@ -43,13 +43,3 @@ pub struct RangeDiagnostics {
     pub outside_streak: usize,
     pub occupancy_entropy: f64,
 }
-
-#[derive(Clone, Copy, Debug)]
-pub struct Candle {
-    pub timestamp_ms: i64,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: f64,
-}

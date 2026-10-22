@@ -15,5 +15,5 @@
 "serde" = { "version" = "1", "features" = ["derive"] }
 
 [dev-dependencies]
-signal-api = { path = "../signal-api" }
+test-support = { path = "../../test-support" }
 tokio = { version = "1", features = ["rt", "macros"] }

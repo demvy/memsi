@@ -9,7 +9,7 @@ pub(super) struct Console {
 }
 
 impl Console {
-    pub(super) fn new(debug: bool, config: &app_config::AppConfig) -> Self {
+    pub(super) fn new(debug: bool, config: &app_config::AppConfig, json_logging: bool) -> Self {
         Self {
             logging: config
                 .strategies
@@ -18,7 +18,9 @@ impl Console {
                 .map(|s| (s.id.clone(), s.logging))
                 .collect(),
             debug,
-            color: std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none(),
+            color: !json_logging
+                && std::io::stderr().is_terminal()
+                && std::env::var_os("NO_COLOR").is_none(),
         }
     }
 }
@@ -71,14 +73,14 @@ impl MonitorDiagnostics for Console {
             return;
         }
 
-        eprintln!(
+        tracing::info!(
             "[discovery {}] received={} elapsed_ms={}",
             timestamp(finished_at),
             candidates.len(),
             elapsed.as_millis()
         );
         for candidate in candidates {
-            eprintln!("  {}", label(candidate));
+            tracing::info!("  {}", label(candidate));
         }
     }
 
@@ -119,7 +121,7 @@ impl MonitorDiagnostics for Console {
                     ("UNAVAILABLE".into(), "NO_ELIGIBLE_DATA", true)
                 };
 
-                eprintln!(
+                tracing::info!(
                     "{}",
                     styled(
                         &format!("{prefix} {status} {}", safe(code)),
@@ -131,7 +133,7 @@ impl MonitorDiagnostics for Console {
 
             if let Some(reasons) = &item.prefilter_rejection {
                 for r in reasons {
-                    eprintln!(
+                    tracing::info!(
                         "{}",
                         styled(&format!("{prefix} REJECT {}", reason(r)), self.color)
                     );
@@ -141,7 +143,7 @@ impl MonitorDiagnostics for Console {
                     decision.verdict,
                     strategy_api::Verdict::Reject | strategy_api::Verdict::Unavailable
                 );
-                eprintln!(
+                tracing::info!(
                     "{}",
                     styled(
                         &format!("{prefix} {:?}", decision.verdict),
@@ -149,18 +151,18 @@ impl MonitorDiagnostics for Console {
                     )
                 );
                 for r in &decision.reasons {
-                    eprintln!(
+                    tracing::info!(
                         "{}",
                         styled(&format!("  {}", reason(r)), negative && self.color)
                     );
                 }
             } else if let Some(error) = &item.unavailable {
-                eprintln!(
+                tracing::info!(
                     "{}",
                     styled(&format!("{prefix} UNAVAILABLE {}", safe(error)), self.color)
                 );
             } else {
-                eprintln!(
+                tracing::info!(
                     "{}",
                     styled(
                         &format!("{prefix} UNAVAILABLE no eligible pool/analysis result"),
@@ -170,7 +172,7 @@ impl MonitorDiagnostics for Console {
             }
 
             for probe in &item.trace {
-                eprintln!(
+                tracing::info!(
                     "{}",
                     styled(
                         &format!(
@@ -190,7 +192,7 @@ impl MonitorDiagnostics for Console {
             return;
         }
 
-        eprintln!(
+        tracing::info!(
             "{}",
             styled(
                 &format!("{} UNAVAILABLE {}", label(candidate), safe(error)),
@@ -233,13 +235,14 @@ mod diagnostic_tests {
 
     #[test]
     fn disabled_diagnostic_policy_is_retained_and_labels_sanitize_provider_symbols() {
-        let mut config =
-            app_config::AppConfig::parse(include_str!("../../app-config/src/research-preset.toml"))
-                .unwrap();
+        let mut config = app_config::AppConfig::parse(include_str!(
+            "../../../app-config/src/research-preset.toml"
+        ))
+        .unwrap();
         for strategy in &mut config.strategies {
             strategy.logging = false;
         }
-        let console = Console::new(false, &config);
+        let console = Console::new(false, &config, false);
         assert!(!console.debug);
         assert!(console.logging.values().all(|enabled| !enabled));
         let candidate = domain::Candidate {

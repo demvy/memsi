@@ -1,6 +1,5 @@
 use super::*;
-#[path = "../../../test-support/market.rs"]
-mod fixtures;
+use test_support::market as fixtures;
 
 struct Provider {
     calls: AtomicU64,
@@ -74,7 +73,7 @@ fn hub_constructor_checks_capacity_ttl_and_timeout_bounds() {
 }
 
 #[tokio::test]
-async fn concurrent_requests_join_one_flight_and_success_is_cached_and_observable() {
+async fn concurrent_requests_join_one_flight_and_success_is_cached() {
     let provider = provider();
     let series = provider.outcome.clone().unwrap();
     let hub = DataHub::new(
@@ -92,35 +91,15 @@ async fn concurrent_requests_join_one_flight_and_success_is_cached_and_observabl
     );
     assert!(Arc::ptr_eq(&first.unwrap(), &second.unwrap()));
     let cached = hub.candles(&request, &context).await.unwrap();
+    assert!(Arc::ptr_eq(
+        &cached,
+        &hub.candles(&request, &context).await.unwrap()
+    ));
     assert_eq!(provider.calls.load(Ordering::Relaxed), 1);
     let stats = hub.stats();
     assert_eq!(stats.upstream_attempts, 1);
     assert_eq!(stats.singleflight_joins, 1);
-    assert_eq!(stats.cache_hits, 1);
-    let observations = hub
-        .candle_observations(&series.priced_token, 1)
-        .await
-        .unwrap();
-    assert_eq!(observations.observed_series, 1);
-    assert!(!observations.truncated);
-    assert!(Arc::ptr_eq(&cached, &observations.series[0]));
-    assert!(
-        hub.candle_observations(&fixtures::token(99), 1)
-            .await
-            .unwrap()
-            .series
-            .is_empty()
-    );
-    assert!(
-        hub.candle_observations(&series.priced_token, 0)
-            .await
-            .is_err()
-    );
-    assert!(
-        hub.candle_observations(&series.priced_token, 17)
-            .await
-            .is_err()
-    );
+    assert_eq!(stats.cache_hits, 2);
 }
 
 #[tokio::test]

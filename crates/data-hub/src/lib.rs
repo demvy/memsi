@@ -211,12 +211,14 @@ impl DataHub {
             }
 
             tokio::select! {
+                biased;
+                _ = ctx.cancellation.cancelled() => return Err(ProviderError::Cancelled),
+                _ = tokio::time::sleep_until(ctx.deadline.into()) => return Err(ProviderError::Timeout),
                 changed = rx.changed() => {
                     if changed.is_err() {
                         return Err(ProviderError::Transport);
                     }
                 },
-                _ = tokio::time::sleep(Duration::from_millis(10)) => {}
             }
         }
     }
@@ -243,54 +245,6 @@ fn validate_response(
     series.provenance.input_hash = ContentHash::of(&(r, &series.candles))
         .map_err(|_| ProviderError::InvalidData("input hash".into()))?;
     Ok(series)
-}
-
-#[async_trait::async_trait]
-impl CandleObservationReader for DataHub {
-    async fn candle_observations(
-        &self,
-        token: &TokenId,
-        limit: usize,
-    ) -> Result<CandleObservations, ProviderError> {
-        if !(1..=16).contains(&limit) {
-            return Err(ProviderError::InvalidRequest);
-        }
-
-        let entries = self.entries.lock().await;
-        let mut series: Vec<_> = entries
-            .values()
-            .filter_map(|entry| {
-                if entry.created.elapsed() >= self.ttl {
-                    return None;
-                }
-
-                match &*entry.rx.borrow() {
-                    Some(Ok(series)) if &series.priced_token == token => Some(series.clone()),
-                    _ => None,
-                }
-            })
-            .collect();
-        drop(entries);
-        series.sort_by(|a, b| {
-            (
-                b.end_exclusive,
-                b.provenance.fetched_at,
-                &b.provenance.input_hash,
-            )
-                .cmp(&(
-                    a.end_exclusive,
-                    a.provenance.fetched_at,
-                    &a.provenance.input_hash,
-                ))
-        });
-        let observed_series = series.len();
-        series.truncate(limit);
-        Ok(CandleObservations {
-            truncated: observed_series > series.len(),
-            observed_series,
-            series,
-        })
-    }
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+use analysis_api::identifiers;
 use analysis_api::*;
 use analysis_model::{TrendAnalysis, TrendDirection};
 use domain::*;
@@ -52,8 +53,8 @@ impl TrendAnalyzer {
             version: env!("CARGO_PKG_VERSION").into(),
             kind: plugin_api::PluginKind::Analyzer,
             provides: vec![plugin_api::Capability::pure(
-                CapabilityId::new("analysis.trend").unwrap(),
-                1,
+                CapabilityId::new(identifiers::TREND_SCHEMA).unwrap(),
+                identifiers::SCHEMA_MAJOR,
             )],
         }
     }
@@ -162,7 +163,6 @@ impl Analyzer for TrendAnalyzer {
                 desired_bars: self.config.window,
                 require_volume: false,
             },
-            dependencies: vec![],
         }
     }
 

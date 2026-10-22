@@ -49,7 +49,7 @@ pub async fn supervise(
             cancellation.cancel();
             result?;
 
-            eprintln!("parser stopped: all configured API keys have exhausted their quota");
+            tracing::info!("parser stopped: all configured API keys have exhausted their quota");
             tokio::time::timeout(Duration::from_secs(15), &mut work)
                 .await
                 .map_err(|_| "quota shutdown deadline exceeded")?
@@ -74,7 +74,7 @@ async fn inspect(reader: &dyn TransportObservationReader, sinks: &Sinks) -> Resu
         }
 
         let text = message(usage, exhausted, status.exhausted);
-        eprintln!("{text}");
+        tracing::info!("{text}");
         let ctx = RequestContext {
             priority: Default::default(),
             deadline: Instant::now() + Duration::from_secs(15),
@@ -83,9 +83,9 @@ async fn inspect(reader: &dyn TransportObservationReader, sinks: &Sinks) -> Resu
 
         for (id, sink) in sinks {
             match sink.send_notice(&text, &ctx).await {
-                Ok(_) => eprintln!("quota notice accepted by {id}"),
+                Ok(_) => tracing::info!("quota notice accepted by {id}"),
                 Err(error) => {
-                    eprintln!("quota notice failed for {id}: {error}; no automatic resend")
+                    tracing::warn!(sink = %id, error = %error, "quota notice failed; no automatic resend")
                 }
             }
         }

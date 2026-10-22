@@ -14,14 +14,12 @@ impl<'a> Counter<'a> {
 
     pub(super) fn log(&mut self) {
         if let Some(stats) = self.reader.and_then(|r| r.transport_observations()) {
-            eprintln!(
-                "{}",
-                serde_json::json!({
-                    "event": "codex_request_counts",
-                    "http_attempts_since_report": stats.http_attempts.saturating_sub(self.previous),
-                    "http_attempts_total": stats.http_attempts,
-                    "http_retries_total": stats.http_retries,
-                })
+            tracing::info!(
+                event = "codex_request_counts",
+                http_attempts_since_report = stats.http_attempts.saturating_sub(self.previous),
+                http_attempts_total = stats.http_attempts,
+                http_retries_total = stats.http_retries,
+                "Codex request counts"
             );
             self.previous = stats.http_attempts;
         }

@@ -1,13 +1,12 @@
 use crate::{Clock, links};
 use domain::*;
-use event_api::{EventEnvelope, EventPublisher, LifecycleEvent};
 use futures::FutureExt;
 use notification_api::*;
 use provider_api::{Cancellation, RequestContext};
 use state_api::*;
 use std::{
     collections::BTreeMap,
-    panic::{AssertUnwindSafe, catch_unwind},
+    panic::AssertUnwindSafe,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -25,28 +24,6 @@ pub async fn deliver_one(
     clock: &dyn Clock,
     cancellation: &Cancellation,
     policy: &DeliveryPolicy,
-) -> Result<bool, StateError> {
-    deliver(repository, sinks, clock, cancellation, policy, None).await
-}
-
-pub async fn deliver_one_with_events(
-    repository: &dyn DeliveryRepository,
-    sinks: &Sinks,
-    clock: &dyn Clock,
-    cancellation: &Cancellation,
-    policy: &DeliveryPolicy,
-    events: &dyn EventPublisher,
-) -> Result<bool, StateError> {
-    deliver(repository, sinks, clock, cancellation, policy, Some(events)).await
-}
-
-async fn deliver(
-    repository: &dyn DeliveryRepository,
-    sinks: &Sinks,
-    clock: &dyn Clock,
-    cancellation: &Cancellation,
-    policy: &DeliveryPolicy,
-    events: Option<&dyn EventPublisher>,
 ) -> Result<bool, StateError> {
     if cancellation.is_cancelled() {
         return Ok(false);
@@ -91,23 +68,8 @@ async fn deliver(
         .catch_unwind()
         .await
         .unwrap_or(Err(NotificationError::UnknownOutcome));
-    let delivered = result.is_ok();
     let completed_at = clock.now()?;
     settle(repository, &lease, result, completed_at, policy).await?;
-    if delivered
-        && let Some(events) = events
-        && let Ok(event) = EventEnvelope::new(
-            completed_at,
-            format!("delivery:{}", lease.delivery_id.as_str()),
-            u64::from(lease.attempt),
-            LifecycleEvent::NotificationDelivered {
-                delivery: lease.delivery_id.clone(),
-            },
-        )
-    {
-        let _ = catch_unwind(AssertUnwindSafe(|| events.publish(event)));
-    }
-
     Ok(true)
 }
 

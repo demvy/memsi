@@ -6,8 +6,6 @@ use std::collections::BTreeSet;
 pub enum AppMode {
     Observe,
     Signal,
-    Paper,
-    Live,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

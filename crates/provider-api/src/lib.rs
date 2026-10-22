@@ -11,14 +11,18 @@ use std::{
 };
 
 #[derive(Clone, Default)]
-pub struct Cancellation(Arc<AtomicBool>);
+pub struct Cancellation(tokio_util::sync::CancellationToken);
 impl Cancellation {
     pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release)
+        self.0.cancel();
     }
 
     pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
+        self.0.is_cancelled()
+    }
+
+    pub async fn cancelled(&self) {
+        self.0.cancelled().await;
     }
 }
 
@@ -113,8 +117,6 @@ pub struct PoolDiscoveryResult {
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error, Serialize, Deserialize)]
 pub enum ProviderError {
-    #[error("recorded data unavailable at replay time")]
-    UnavailableReplayData,
     #[error("all configured API keys have exhausted their local quota")]
     QuotaExhausted,
     #[error("API usage accounting unavailable")]
@@ -162,7 +164,7 @@ pub trait PoolDiscoveryProvider: Send + Sync {
         Ok(TokenMetrics::default())
     }
 
-    /// Requested token fields only; default keeps existing record/replay providers compatible.
+    /// Requested token fields only; the default falls back to the full snapshot.
     async fn token_metrics_selected(
         &self,
         token: &TokenId,
@@ -201,7 +203,6 @@ pub trait PoolDiscoveryProvider: Send + Sync {
         Ok(output)
     }
 
-    fn descriptor(&self) -> plugin_api::PluginDescriptor;
     async fn pools_for_token(
         &self,
         token: &TokenId,
@@ -221,7 +222,7 @@ pub trait PoolMetadataProvider: Send + Sync {
 #[async_trait]
 pub trait CandleProvider: Send + Sync {
     /// Explicit opt-in: closed history supports incremental reads with a small revision overlap.
-    /// Exact-query record/replay adapters keep the default full-window behavior.
+    /// Other providers keep the default full-window behavior.
     fn supports_closed_candle_deltas(&self) -> bool {
         false
     }
@@ -238,15 +239,6 @@ pub trait MarketProvider: CandleProvider + PoolDiscoveryProvider + PoolMetadataP
 impl<T: CandleProvider + PoolDiscoveryProvider + PoolMetadataProvider + ?Sized> MarketProvider
     for T
 {
-}
-
-#[async_trait]
-pub trait PoolVerifier: Send + Sync {
-    async fn verify_pool(
-        &self,
-        pool: &PoolId,
-        ctx: &RequestContext,
-    ) -> Result<PoolSnapshot, ProviderError>;
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -297,24 +289,6 @@ pub trait TransportObservationReader: Send + Sync {
     ) -> Result<bool, ProviderError> {
         Ok(false)
     }
-}
-
-/// Successful series currently retained by a session cache, not discovery completeness/current health.
-#[derive(Clone, Debug)]
-pub struct CandleObservations {
-    pub series: Vec<Arc<CandleSeries>>,
-    pub observed_series: usize,
-    pub truncated: bool,
-}
-
-/// Passive reads only: implementations must not fetch/probe providers or wait for pending flights.
-#[async_trait]
-pub trait CandleObservationReader: Send + Sync {
-    async fn candle_observations(
-        &self,
-        token: &TokenId,
-        limit: usize,
-    ) -> Result<CandleObservations, ProviderError>;
 }
 
 #[cfg(test)]

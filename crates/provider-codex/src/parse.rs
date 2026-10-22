@@ -142,7 +142,8 @@ pub(super) fn bars(
             continue;
         }
 
-        let volume = if buy[i].is_null() || sell[i].is_null() {
+        let volume_unknown = buy[i].is_null() || sell[i].is_null();
+        let volume = if volume_unknown {
             Knowledge::unknown()
         } else {
             Knowledge::known(NonNegative::new(
@@ -158,7 +159,7 @@ pub(super) fn bars(
             number(&c[i])?.get(),
             volume,
         )?;
-        candle.buy_volume = if buy[i].is_null() {
+        candle.buy_volume = if volume_unknown {
             Knowledge::unknown()
         } else {
             Knowledge::known(number(&buy[i])?)

@@ -15,9 +15,9 @@ fn watch_retention_expires_exact_boundary_and_orders_by_due_time_then_sequence()
     second.candidate.token = fixtures::token(2);
     second.last_seen = fixtures::timestamp(1);
     second.order = 2;
-    assert!(watch_order(&first, &second).is_lt());
+    assert!(compare_watch_records(&first, &second).is_lt());
     first.next_due = fixtures::timestamp(101);
-    assert!(watch_order(&first, &second).is_gt());
+    assert!(compare_watch_records(&first, &second).is_gt());
     let mut watch = BTreeMap::from([
         (first.candidate.token.clone(), first),
         (second.candidate.token.clone(), second),

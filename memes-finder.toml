@@ -1,7 +1,7 @@
 # Credentials are loaded from the environment or local .env.
 strategies_file = "strategies.toml"
 watchlist_retention_minutes = 30
-telegram = true # Set true after configuring Telegram credentials.
+telegram = false # Set true after configuring Telegram credentials.
 fallback_api_keys = []
 
 [api_usage]

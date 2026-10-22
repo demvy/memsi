@@ -1,7 +1,6 @@
 use super::*;
 use strategy_api::Strategy;
-#[path = "../../../test-support/strategy_config.rs"]
-mod fixtures;
+use test_support::strategy_config as fixtures;
 
 #[test]
 fn profile_builder_preserves_instance_mode_and_descriptor() {

@@ -1,5 +1,4 @@
 //! Deterministic market fixtures shared by unit tests; no network or system clock.
-#![allow(dead_code)]
 
 use domain::*;
 

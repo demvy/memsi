@@ -60,7 +60,6 @@ fn build(
 
     let cooldown_secs = match decision.plugin.as_str() {
         "strategy.range-low-risk" => 1800,
-        "strategy.range-medium-risk" => 1200,
         _ => 900,
     };
 

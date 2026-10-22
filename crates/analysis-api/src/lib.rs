@@ -1,82 +1,16 @@
 #![forbid(unsafe_code)]
-use analysis_model::Artifact;
+pub mod identifiers {
+    pub const RANGE_BINDING: &str = "range";
+    pub const VOLUME_BINDING: &str = "volume";
+    pub const TREND_BINDING: &str = "trend";
+    pub const RANGE_SCHEMA: &str = "analysis.range";
+    pub const VOLUME_SCHEMA: &str = "analysis.volume";
+    pub const TREND_SCHEMA: &str = "analysis.trend";
+    pub const SCHEMA_MAJOR: u16 = 1;
+}
+
 use domain::*;
 use serde::{Deserialize, Serialize};
-use std::{any::Any, collections::BTreeMap, marker::PhantomData, sync::Arc};
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct ArtifactSlot {
-    pub schema: SchemaId,
-    pub major: u16,
-    pub instance: InstanceId,
-    pub invocation_digest: ContentHash,
-    pub input_hash: ContentHash,
-}
-
-pub struct ArtifactKey<T> {
-    pub slot: ArtifactSlot,
-    _type: PhantomData<fn() -> T>,
-}
-
-impl<T> ArtifactKey<T> {
-    pub fn new(slot: ArtifactSlot) -> Self {
-        Self {
-            slot,
-            _type: PhantomData,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum ArtifactError {
-    #[error("missing artifact")]
-    Missing,
-    #[error("wrong artifact type")]
-    WrongType,
-    #[error("slot already occupied")]
-    Duplicate,
-    #[error("artifact provenance does not match slot")]
-    ProvenanceMismatch,
-}
-
-#[derive(Default)]
-pub struct ArtifactStore {
-    inner: BTreeMap<ArtifactSlot, Arc<dyn Any + Send + Sync>>,
-}
-
-impl ArtifactStore {
-    pub fn insert<T: Send + Sync + 'static>(
-        &mut self,
-        key: ArtifactKey<T>,
-        value: Artifact<T>,
-    ) -> Result<(), ArtifactError> {
-        let p = &value.provenance;
-        if p.schema != key.slot.schema
-            || p.schema_major != key.slot.major
-            || p.analyzer_instance != key.slot.instance
-            || p.input_hash != key.slot.input_hash
-        {
-            return Err(ArtifactError::ProvenanceMismatch);
-        }
-
-        if self.inner.contains_key(&key.slot) {
-            return Err(ArtifactError::Duplicate);
-        }
-
-        self.inner.insert(key.slot, Arc::new(value));
-        Ok(())
-    }
-
-    pub fn get<T: Send + Sync + 'static>(
-        &self,
-        key: &ArtifactKey<T>,
-    ) -> Result<&Artifact<T>, ArtifactError> {
-        self.inner
-            .get(&key.slot)
-            .ok_or(ArtifactError::Missing)?
-            .downcast_ref()
-            .ok_or(ArtifactError::WrongType)
-    }
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CandleRequirement {
@@ -99,12 +33,10 @@ pub struct AnalysisBinding {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnalysisRequirements {
     pub candles: CandleRequirement,
-    pub dependencies: Vec<AnalysisBinding>,
 }
 
 pub struct AnalysisContext<'a> {
     pub candles: &'a CandleSeries,
-    pub dependencies: &'a ArtifactStore,
     pub as_of: TimestampMs,
 }
 
@@ -141,6 +73,3 @@ pub trait Analyzer: Send + Sync {
     fn requirements(&self, resolution: Resolution, price_unit: PriceUnit) -> AnalysisRequirements;
     fn analyze(&self, ctx: &AnalysisContext<'_>) -> Result<AnalysisValue, AnalysisError>;
 }
-
-#[cfg(test)]
-mod tests;

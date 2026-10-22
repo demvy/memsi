@@ -124,52 +124,6 @@ fn knowledge_distinguishes_missing_from_known_zero() {
 }
 
 #[test]
-fn atomic_amounts_validate_uint256_and_add_without_precision_loss() {
-    let maximum = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
-    for text in [
-        "",
-        "00",
-        "01",
-        "-1",
-        "+1",
-        "1.0",
-        " 1",
-        "١",
-        &"9".repeat(79),
-    ] {
-        assert!(AtomicAmount::new(text).is_err(), "accepted {text:?}");
-    }
-
-    let limit = AtomicAmount::new(maximum).unwrap();
-    assert_eq!(limit.as_str(), maximum);
-    assert!(limit.checked_add(&AtomicAmount::from(1u64)).is_err());
-    assert_eq!(limit.checked_add(&AtomicAmount::from(0u64)).unwrap(), limit);
-    assert!(AtomicAmount::new(format!("{}936", &maximum[..maximum.len() - 3])).is_err());
-
-    let amount = AtomicAmount::from(999u64);
-    assert_eq!(
-        amount
-            .checked_add(&AtomicAmount::from(1u128))
-            .unwrap()
-            .as_str(),
-        "1000"
-    );
-    assert!(AtomicAmount::from(0u64).is_zero());
-    assert!(!amount.is_zero());
-    assert!(AtomicAmount::from(10u64) > AtomicAmount::from(9u64));
-    assert!(AtomicAmount::from(11u64) > AtomicAmount::from(10u64));
-    assert_eq!(amount.partial_cmp(&amount), Some(std::cmp::Ordering::Equal));
-    assert_eq!(amount.units(0), "999");
-    assert_eq!(amount.units(2), "9.99");
-    assert_eq!(amount.units(3), "0.999");
-    assert_eq!(amount.units(5), "0.00999");
-    assert_eq!(amount.to_string(), "999");
-    assert_eq!(AtomicAmount::try_from("999".to_owned()).unwrap(), amount);
-    assert_eq!(String::from(amount.clone()), "999");
-    round_trip(&amount);
-}
-
-#[test]
 fn chain_addresses_are_validated_and_canonicalized() {
     assert!(ChainId::Evm { chain_id: 0 }.validate().is_err());
     assert_eq!(chain().address(&address('A')).unwrap(), address('a'));
@@ -254,60 +208,6 @@ fn content_hashes_are_stable_validated_sha256_strings() {
         ContentHash::of(&serde_json::json!({"b": 2, "a": 1})).unwrap()
     );
     assert_ne!(ContentHash::of(&1).unwrap(), ContentHash::of(&2).unwrap());
-}
-
-#[test]
-fn activities_require_locations_matching_the_transaction_chain() {
-    let transaction = ChainTransaction::new(chain(), &format!("0X{}", "A".repeat(64))).unwrap();
-    assert_eq!(transaction.chain(), &chain());
-    assert_eq!(transaction.hash(), format!("0x{}", "a".repeat(64)));
-    round_trip(&transaction);
-    for invalid in ["", "0x12", &format!("0x{}", "g".repeat(64))] {
-        assert!(ChainTransaction::new(chain(), invalid).is_err());
-    }
-
-    let location = ActivityLocation::EvmLog {
-        log_ordinal: 2,
-        effect_index: 1,
-    };
-    let activity = ActivityId::new(transaction.clone(), location.clone()).unwrap();
-    assert_eq!(activity.transaction(), &transaction);
-    assert_eq!(activity.location(), &location);
-    round_trip(&activity);
-    assert!(ActivityId::new(transaction.clone(), ActivityLocation::TransactionFee).is_ok());
-    assert!(
-        ActivityId::new(
-            transaction,
-            ActivityLocation::SolanaInstruction {
-                instruction: 0,
-                inner: None,
-                effect_index: 0
-            }
-        )
-        .is_err()
-    );
-
-    let solana = ChainId::Solana {
-        genesis_hash: bs58::encode([1u8; 32]).into_string(),
-    };
-    let signature = bs58::encode([2u8; 64]).into_string();
-    let transaction = ChainTransaction::new(solana.clone(), &signature).unwrap();
-    round_trip(&transaction);
-    assert!(
-        ActivityId::new(
-            transaction.clone(),
-            ActivityLocation::SolanaInstruction {
-                instruction: 1,
-                inner: Some(2),
-                effect_index: 3
-            }
-        )
-        .is_ok()
-    );
-    assert!(ActivityId::new(transaction, location).is_err());
-    for invalid in ["0", "1", &"1".repeat(89)] {
-        assert!(ChainTransaction::new(solana.clone(), invalid).is_err());
-    }
 }
 
 #[test]

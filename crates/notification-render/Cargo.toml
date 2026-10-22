@@ -9,3 +9,6 @@
 "domain" = { "path" = "../domain" }
 "notification-api" = { "path" = "../notification-api" }
 "signal-api" = { "path" = "../signal-api" }
+
+[dev-dependencies]
+test-support = { path = "../../test-support" }

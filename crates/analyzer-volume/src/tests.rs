@@ -2,8 +2,7 @@ use super::*;
 use analysis_api::*;
 use analysis_model::ActivityState;
 use domain::*;
-#[path = "../../../test-support/market.rs"]
-mod fixtures;
+use test_support::market as fixtures;
 
 fn build_analyzer(robust: bool) -> VolumeAnalyzer {
     VolumeAnalyzer::new(
@@ -79,7 +78,7 @@ fn mean_and_robust_volume_classify_inactive_unknown_normal_and_elevated() {
             ([2.0, 2.0, 2.0, 2.0], ActivityState::Normal, Some(1.0)),
             ([2.0, 2.0, 4.0, 4.0], ActivityState::Elevated, Some(2.0)),
         ] {
-            let result = analyzer.analyze_values(&values, VolumeUnit::Usd).unwrap();
+            let result = analyzer.analyze_metrics(&values, VolumeUnit::Usd).unwrap();
             assert_eq!(result.state, state);
             assert_eq!(result.relative_volume.map(NonNegative::get), ratio);
             assert_eq!(
@@ -101,31 +100,31 @@ fn mean_and_robust_volume_classify_inactive_unknown_normal_and_elevated() {
 fn metrics_use_latest_window_and_reject_invalid_inputs_and_overflow() {
     let analyzer = build_analyzer(false);
     let result = analyzer
-        .analyze_values(&[f64::NAN, 1.0, 3.0, 2.0, 4.0], VolumeUnit::Usd)
+        .analyze_metrics(&[f64::NAN, 1.0, 3.0, 2.0, 4.0], VolumeUnit::Usd)
         .unwrap();
     assert_eq!(result.baseline_mean.get(), 2.0);
     assert_eq!(result.recent_mean.get(), 3.0);
     assert_eq!(result.last_volume_percentile.get(), 1.0);
     assert_eq!(
         analyzer
-            .analyze_values(&[1.0; 4], VolumeUnit::Usd)
+            .analyze_metrics(&[1.0; 4], VolumeUnit::Usd)
             .unwrap()
             .last_volume_percentile
             .get(),
         0.5
     );
     assert!(matches!(
-        analyzer.analyze_values(&[1.0; 3], VolumeUnit::Usd),
+        analyzer.analyze_metrics(&[1.0; 3], VolumeUnit::Usd),
         Err(AnalysisError::InsufficientHistory { .. })
     ));
     assert!(matches!(
-        analyzer.analyze_values(&[1.0; 4], VolumeUnit::Unknown),
+        analyzer.analyze_metrics(&[1.0; 4], VolumeUnit::Unknown),
         Err(AnalysisError::UnsupportedUnits)
     ));
     for invalid in [-1.0, f64::NAN, f64::INFINITY, f64::MAX] {
         assert!(
             analyzer
-                .analyze_values(&[invalid; 4], VolumeUnit::Usd)
+                .analyze_metrics(&[invalid; 4], VolumeUnit::Usd)
                 .is_err()
         );
     }
@@ -147,13 +146,11 @@ fn analyzer_contract_validates_context_and_requires_known_volume() {
     assert_eq!(requirements.candles.min_bars, 4);
     assert_eq!(requirements.candles.desired_bars, 4);
     assert!(requirements.candles.require_volume);
-    assert!(requirements.dependencies.is_empty());
     let mut series = fixtures::series(&[1.0; 4], &[1.0, 2.0, 3.0, 4.0]);
-    let dependencies = ArtifactStore::default();
+
     let analyze = |series: &CandleSeries, as_of| {
         analyzer.analyze(&AnalysisContext {
             candles: series,
-            dependencies: &dependencies,
             as_of,
         })
     };

@@ -13,12 +13,14 @@
 "telegram" = ["app-bootstrap/telegram"]
 "low-risk" = ["app-bootstrap/low-risk"]
 "high-risk" = ["app-bootstrap/high-risk"]
-"codex" = ["monitor", "app-bootstrap/codex", "dep:app-services", "dep:domain", "dep:provider-api", "dep:tokio", "dep:monitor-runtime", "dep:signal-service"]
+"codex" = ["monitor", "app-bootstrap/codex"]
 "range" = ["app-bootstrap/range"]
 "volume" = ["app-bootstrap/volume"]
 "trend" = ["app-bootstrap/trend"]
 
 [dependencies]
+tracing-subscriber = { version = "0.3", features = ["json"] }
+tracing = "0.1"
 "strategy-api" = { "path" = "../strategy-api", "optional" = true }
 "time" = { "version" = "0.3.44", "features" = ["formatting"] }
 "app-api" = { "path" = "../app-api" }
@@ -32,8 +34,6 @@
 "tokio" = { "version" = "1", "features" = ["rt", "time", "macros", "signal"], "optional" = true }
 "monitor-runtime" = { "path" = "../monitor-runtime", "optional" = true }
 "signal-service" = { "path" = "../signal-service", "optional" = true }
-"serde" = { "version" = "1", "features" = ["derive"], "optional" = true }
-"toml" = { "version" = "1.1", "optional" = true }
 "state-api" = { "path" = "../state-api", "optional" = true }
 
 

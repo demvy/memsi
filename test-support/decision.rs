@@ -1,11 +1,9 @@
 //! Complete decision fixture for signal and delivery tests.
-#![allow(dead_code)]
 use analysis_model::*;
 use domain::*;
 use strategy_api::*;
 
-#[path = "market.rs"]
-pub mod market;
+pub use crate::market;
 
 pub fn range() -> RangeAnalysis {
     RangeAnalysis {

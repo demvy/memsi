@@ -10,32 +10,25 @@ pub struct EnabledInstance {
     pub mode: String,
 }
 
-/// Shared CLI/HTTP shape. State and activity retain their explicit observation contracts.
+/// Offline configuration and process-state availability.
 #[derive(Serialize)]
-pub struct StatusEnvelope<S, A> {
+pub struct StatusEnvelope<S> {
     pub schema_version: u16,
     pub config_digest: ContentHash,
     pub chain: ChainId,
     pub mode: String,
     pub enabled_instances: Vec<EnabledInstance>,
     pub provider_health: &'static str,
-    pub runtime_status: &'static str,
-    pub runtime: Option<event_api::RuntimeSnapshot>,
-    pub runtime_activity: Option<A>,
-    pub analysis_jobs: Option<AnalysisJobStats>,
-    pub provider_transport: Option<ProviderTransportObservation>,
     pub state: S,
 }
 
-impl<S, A> StatusEnvelope<S, A> {
+impl<S> StatusEnvelope<S> {
     pub fn new(
         config_digest: ContentHash,
         chain: ChainId,
         mode: String,
         enabled_instances: Vec<EnabledInstance>,
         state: S,
-        runtime: Option<event_api::RuntimeSnapshot>,
-        runtime_activity: Option<A>,
     ) -> Self {
         Self {
             schema_version: 1,
@@ -44,30 +37,8 @@ impl<S, A> StatusEnvelope<S, A> {
             mode,
             enabled_instances,
             provider_health: "not_observed",
-            runtime_status: if runtime.is_some() {
-                "observed"
-            } else {
-                "not_observed"
-            },
-            runtime,
-            runtime_activity,
-            analysis_jobs: None,
-            provider_transport: None,
             state,
         }
-    }
-
-    pub fn with_provider_transport(
-        mut self,
-        observation: Option<ProviderTransportObservation>,
-    ) -> Self {
-        self.provider_transport = observation;
-        self
-    }
-
-    pub fn with_analysis_jobs(mut self, jobs: Option<AnalysisJobStats>) -> Self {
-        self.analysis_jobs = jobs;
-        self
     }
 }
 
@@ -124,26 +95,6 @@ impl StrategyCatalogEnvelope {
     }
 }
 
-/// Static public failures only. Raw upstream/config/OS error strings do not belong here.
-#[derive(Serialize)]
-pub struct ErrorEnvelope {
-    pub code: &'static str,
-    pub message: &'static str,
-    pub request_id: String,
-    pub details: Option<()>,
-}
-
-impl ErrorEnvelope {
-    pub fn new(code: &'static str, message: &'static str, request_id: String) -> Self {
-        Self {
-            code,
-            message,
-            request_id,
-            details: None,
-        }
-    }
-}
-
 /// Bounded request for read-side analysis. Notifications need a separately authorized lane.
 #[derive(Clone, Debug, serde::Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -165,6 +116,18 @@ fn analysis_resolution() -> domain::Resolution {
     domain::Resolution::new(300).expect("constant resolution")
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum AnalysisRequestError {
+    #[error("analysis chain mismatch")]
+    ChainMismatch,
+    #[error("analysis notifications are not authorized")]
+    NotificationsUnauthorized,
+    #[error("invalid analysis bounds")]
+    InvalidBounds,
+    #[error("unknown or duplicate analyzer instance")]
+    InvalidAnalyzer,
+}
+
 impl AnalysisJobRequest {
     /// Validate host identity/capabilities before admitting work or fetching provider data.
     pub fn analyze_request(
@@ -172,15 +135,15 @@ impl AnalysisJobRequest {
         chain: &ChainId,
         enabled: &std::collections::BTreeSet<InstanceId>,
         close_grace_ms: u64,
-    ) -> Result<app_services::AnalyzeRequest, &'static str> {
+    ) -> Result<app_services::AnalyzeRequest, AnalysisRequestError> {
         if self.token.chain() != chain
             || self.pool.as_ref().is_some_and(|pool| pool.chain() != chain)
         {
-            return Err("analysis chain mismatch");
+            return Err(AnalysisRequestError::ChainMismatch);
         }
 
         if self.notify {
-            return Err("analysis notifications are not authorized");
+            return Err(AnalysisRequestError::NotificationsUnauthorized);
         }
 
         if close_grace_ms > 60000
@@ -188,13 +151,13 @@ impl AnalysisJobRequest {
             || enabled.len() > 64
             || self.analyzer_instances.len() > 64
         {
-            return Err("invalid analysis bounds");
+            return Err(AnalysisRequestError::InvalidBounds);
         }
 
         let mut seen = std::collections::BTreeSet::new();
         for id in &self.analyzer_instances {
             if !enabled.contains(id) || !seen.insert(id) {
-                return Err("unknown or duplicate analyzer instance");
+                return Err(AnalysisRequestError::InvalidAnalyzer);
             }
         }
 
@@ -212,26 +175,6 @@ impl AnalysisJobRequest {
             close_grace_ms,
         })
     }
-}
-
-/// One locked registry observation, not provider/worker health or durable history.
-#[derive(Clone, Debug, Serialize)]
-pub struct AnalysisJobStats {
-    pub schema_version: u16,
-    pub closed: bool,
-    pub capacity: usize,
-    pub worker_capacity: usize,
-    pub pending: usize,
-    pub running: usize,
-    pub completed: usize,
-    pub failed: usize,
-    pub admission_available: bool,
-}
-
-#[derive(Serialize)]
-pub struct ProviderTransportObservation {
-    pub instance: InstanceId,
-    pub counters: provider_api::TransportObservations,
 }
 
 #[cfg(test)]

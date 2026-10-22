@@ -18,10 +18,6 @@ pub enum DomainError {
     TimeOverflow,
 }
 
-mod amount;
-pub use amount::AtomicAmount;
-mod activity;
-pub use activity::{ActivityId, ActivityLocation, ChainTransaction};
 mod token_metrics;
 pub use token_metrics::{MetricBounds, TokenMetric, TokenMetrics};
 

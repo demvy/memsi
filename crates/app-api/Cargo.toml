@@ -6,15 +6,15 @@
 "autobenches" = false
 
 [dependencies]
-"provider-api" = { "path" = "../provider-api" }
+thiserror = "2"
 "strategy-api" = { "path" = "../strategy-api" }
 "plugin-api" = { "path" = "../plugin-api" }
 "serde" = { "version" = "1", "features" = ["derive"] }
 "domain" = { "path" = "../domain" }
-"event-api" = { "path" = "../event-api" }
 "app-services" = { "path" = "../app-services" }
 "data-hub" = { "path" = "../data-hub" }
 "serde_json" = "1"
 
 [dev-dependencies]
+test-support = { path = "../../test-support" }
 strategy-range = { path = "../strategy-range" }
